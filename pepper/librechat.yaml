@@ -1,0 +1,18 @@
+version: 1.1.5
+
+cache: true
+
+endpoints:
+  custom:
+    - name: "RA1"
+      apiKey: "${LITELLM_MASTER_KEY}"
+      baseURL: "http://litellm:4000"
+      models:
+        default: ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "claude-3-haiku"]
+        fetch: false
+      titleConvo: true
+      titleModel: "gemini-2.0-flash"
+      summarize: false
+      forcePrompt: false
+      modelDisplayLabel: "RA1"
+      iconURL: ""
