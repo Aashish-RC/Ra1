@@ -4,15 +4,11 @@
 #   docker compose up -d
 # ============================================================
 
-# Include all services from ra1/docker-compose.yml
-include:
-  - ra1/docker-compose.yml
-
 services:
   # ===================== Canvas Frontend =====================
   canvas:
     build:
-      context: ./canvas
+      context: ./apps/canvas
       dockerfile: Dockerfile
       target: dev
     container_name: ra1-canvas
@@ -21,9 +17,9 @@ services:
     environment:
       - VITE_API_URL=http://api:3001
     volumes:
-      - ./canvas/src:/app/src
-      - ./canvas/public:/app/public
-      - ./canvas/index.html:/app/index.html
+      - ./apps/canvas/src:/app/src
+      - ./apps/canvas/public:/app/public
+      - ./apps/canvas/index.html:/app/index.html
     networks:
       - ra1-network
     depends_on:
@@ -31,11 +27,383 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-# ============================================================
-# Usage:
-#   docker compose up -d            # Start everything
-#   docker compose up -d canvas     # Start only canvas
-#   docker compose up -d postgres valkey  # Start minimal stack
-#   docker compose down             # Stop everything
-#   docker compose logs -f          # Follow logs
-# ============================================================
+  # ===================== Infrastructure =====================
+
+  postgres:
+    image: postgres:16.3-alpine
+    container_name: ra1-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ra1}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ra1secret}
+      POSTGRES_DB: ${POSTGRES_DB:-ra1}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ra1-postgres-data:/var/lib/postgresql/data
+      - ./services/infra/postgres-init.sql:/docker-entrypoint-initdb.d/01-king-init.sql
+      - ./services/postgres/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/02-init-multi-db.sh
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ra1} -d ${POSTGRES_DB:-ra1}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  valkey:
+    image: valkey/valkey:7.2.5-alpine
+    container_name: ra1-valkey
+    command: valkey-server --appendonly yes
+    volumes:
+      - ra1-valkey-data:/data
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-h", "localhost", "-p", "6379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: docker.io/redis:7
+    container_name: ra1-redis
+    ports:
+      - "6379:6379"
+    command: --requirepass ${REDIS_AUTH:-ra1redissecret}
+    volumes:
+      - ra1-redis-data:/data
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    container_name: ra1-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - ra1-mongodb-data:/data/db
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: cgr.dev/chainguard/minio
+    container_name: ra1-minio
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+    volumes:
+      - ra1-minio-data:/data
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.6-alpine
+    container_name: ra1-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ra1-clickhouse-data:/var/lib/clickhouse
+      - ./services/infra/clickhouse-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  qdrant:
+    image: qdrant/qdrant:v1.10.1
+    container_name: ra1-qdrant
+    volumes:
+      - ra1-qdrant-data:/qdrant/storage
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.3.6
+    container_name: ra1-ollama
+    volumes:
+      - ra1-ollama-data:/root/.ollama
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:11434/api/ps"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===================== Infisical (Secret Vault) =====================
+
+  infisical-db:
+    image: postgres:17
+    container_name: ra1-infisical-db
+    environment:
+      POSTGRES_USER: infisical
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD:-infisical-secret}
+      POSTGRES_DB: infisical
+    volumes:
+      - ra1-infisical-pgdata:/var/lib/postgresql/data
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infisical"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  infisical:
+    image: infisical/infisical:latest
+    container_name: ra1-infisical
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      DB_CONNECTION_STRING: postgresql://infisical:${INFISICAL_DB_PASSWORD:-infisical-secret}@infisical-db:5432/infisical
+      POSTHOG_HOST: ""
+      SITE_URL: http://localhost:8080
+      TELEMETRY_ENABLED: "false"
+    volumes:
+      - ra1-infisical-data:/data
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      infisical-db:
+        condition: service_healthy
+
+  # ===================== LiteLLM (Model Proxy) =====================
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-v1.44.2
+    container_name: ra1-litellm
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./services/litellm/config.yaml:/app/config.yaml
+    command: ["litellm", "--config", "/app/config.yaml", "--host", "0.0.0.0"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: http://langfuse-web:3000
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:4000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ===================== Langfuse (Observability / ATRS) =====================
+
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    container_name: ra1-langfuse-web
+    ports:
+      - "3002:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ra1}:${POSTGRES_PASSWORD:-ra1secret}@postgres:5432/langfuse
+      NEXTAUTH_SECRET: ${LANGFUSE_SALT}
+      SALT: ${LANGFUSE_SALT}
+      NEXTAUTH_URL: http://localhost:3002
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: ${REDIS_AUTH:-ra1redissecret}
+    networks:
+      - ra1-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    container_name: ra1-langfuse-worker
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ra1}:${POSTGRES_PASSWORD:-ra1secret}@postgres:5432/langfuse
+      SALT: ${LANGFUSE_SALT}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: ${REDIS_AUTH:-ra1redissecret}
+    networks:
+      - ra1-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ===================== LibreChat (Chat UI) =====================
+
+  librechat:
+    image: ghcr.io/danny-avila/librechat:latest
+    container_name: ra1-librechat
+    ports:
+      - "3080:3080"
+    volumes:
+      - ./pepper/librechat.yaml:/app/librechat.yaml
+      - ra1-librechat-images:/app/client/public/images
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/LibreChat
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      CREDS_KEY: ${CREDS_KEY}
+      CREDS_IV: ${CREDS_IV}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ALLOW_REGISTRATION: "true"
+      ALLOW_SOCIAL_LOGIN: "false"
+    networks:
+      - ra1-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+
+
+  # ===================== API (Core Engine) =====================
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: ra1-api
+    environment:
+      - INFISICAL_URL=${INFISICAL_URL}
+      - INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN}
+      - INFISICAL_ENVIRONMENT=${INFISICAL_ENVIRONMENT}
+      - INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID}
+      - DATABASE_URL=${DATABASE_URL}
+      - VALKEY_URL=${VALKEY_URL}
+      - CLICKHOUSE_URL=${CLICKHOUSE_URL}
+      - QDRANT_URL=${QDRANT_URL}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - LITELLM_URL=${LITELLM_URL}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - API_PORT=${API_PORT:-3001}
+      - NODE_ENV=${NODE_ENV:-development}
+    volumes:
+      - ./apps/api/src:/app/src
+    ports:
+      - "3001:3001"
+    networks:
+      - ra1-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      litellm:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  ra1-network:
+    driver: bridge
+
+volumes:
+  ra1-postgres-data:
+  ra1-valkey-data:
+  ra1-redis-data:
+  ra1-mongodb-data:
+  ra1-minio-data:
+  ra1-clickhouse-data:
+  ra1-qdrant-data:
+  ra1-ollama-data:
+  ra1-infisical-data:
+  ra1-infisical-pgdata:
+  ra1-librechat-images:
