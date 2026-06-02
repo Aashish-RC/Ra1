@@ -1,0 +1,39 @@
+model_list:
+  - model_name: gpt-4o
+    litellm_params:
+      model: gpt-4o
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: gpt-4o-mini
+  - model_name: gpt-4-turbo
+    litellm_params:
+      model: gpt-4-turbo
+  - model_name: claude-opus-4
+    litellm_params:
+      model: claude-opus-4
+  - model_name: claude-sonnet-4
+    litellm_params:
+      model: claude-sonnet-4
+  - model_name: gemini-pro
+    litellm_params:
+      model: gemini-pro
+  - model_name: gemini-flash
+    litellm_params:
+      model: gemini-flash
+  - model_name: llama-3.1-70b
+    litellm_params:
+      model: llama-3.1-70b
+  - model_name: llama-3.1-8b
+    litellm_params:
+      model: llama-3.1-8b
+  - model_name: mistral-large
+    litellm_params:
+      model: mistral-large
+  - model_name: deepseek-chat
+    litellm_params:
+      model: deepseek-chat
+
+litellm_settings:
+  forward_client_headers_to_llm_provider: true
+  drop_params: true
+  verbose: false
