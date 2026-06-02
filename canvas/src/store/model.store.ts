@@ -37,7 +37,7 @@ interface ModelStore {
 
   // Provider config
   setBaseUrl: (nodeId: string, url: string) => void
-  setTimeouth: (nodeId: string, timeout: number) => void
+  setTimeout: (nodeId: string, timeout: number) => void
   setTemperature: (nodeId: string, temp: number) => void
   setStatus: (nodeId: string, status: PlacedProvider['status']) => void
 
@@ -118,7 +118,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   setBaseUrl: (nodeId, baseUrl) => set(s => ({
     providers: { ...s.providers, [nodeId]: { ...s.providers[nodeId], baseUrl } }
   })),
-  setTimeouth: (nodeId, timeout) => set(s => ({
+  setTimeout: (nodeId, timeout) => set(s => ({
     providers: { ...s.providers, [nodeId]: { ...s.providers[nodeId], timeout } }
   })),
   setTemperature: (nodeId, temperature) => set(s => ({

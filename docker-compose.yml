@@ -1,0 +1,41 @@
+# ============================================================
+# RA1 Universal Docker Compose
+# Run everything from the project root with:
+#   docker compose up -d
+# ============================================================
+
+# Include all services from ra1/docker-compose.yml
+include:
+  - ra1/docker-compose.yml
+
+services:
+  # ===================== Canvas Frontend =====================
+  canvas:
+    build:
+      context: ./canvas
+      dockerfile: Dockerfile
+      target: dev
+    container_name: ra1-canvas
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://api:3001
+    volumes:
+      - ./canvas/src:/app/src
+      - ./canvas/public:/app/public
+      - ./canvas/index.html:/app/index.html
+    networks:
+      - ra1-network
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+# ============================================================
+# Usage:
+#   docker compose up -d            # Start everything
+#   docker compose up -d canvas     # Start only canvas
+#   docker compose up -d postgres valkey  # Start minimal stack
+#   docker compose down             # Stop everything
+#   docker compose logs -f          # Follow logs
+# ============================================================
