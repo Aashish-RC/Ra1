@@ -46,7 +46,7 @@ export class CredentialVault {
   async store(userId: string, key: string, value: string): Promise<void> {
     const secretName = `${userId}/${key}`;
     const environment = process.env.INFISICAL_ENVIRONMENT || "development";
-    const projectId = process.env.INFISICAL_PROJECT_ID || "";
+    const projectId = process.env.INFISICAL_SYSTEM_PROJECT_ID || "";
 
     try {
       await infisicalClient.createSecret({
@@ -72,7 +72,7 @@ export class CredentialVault {
   async resolve(userId: string, key: string): Promise<string> {
     const secretName = `${userId}/${key}`;
     const environment = process.env.INFISICAL_ENVIRONMENT || "development";
-    const projectId = process.env.INFISICAL_PROJECT_ID || "";
+    const projectId = process.env.INFISICAL_SYSTEM_PROJECT_ID || "";
 
     let success = false;
     let errorCode: string | null = null;
@@ -102,7 +102,7 @@ export class CredentialVault {
   async revoke(userId: string, key: string): Promise<void> {
     const secretName = `${userId}/${key}`;
     const environment = process.env.INFISICAL_ENVIRONMENT || "development";
-    const projectId = process.env.INFISICAL_PROJECT_ID || "";
+    const projectId = process.env.INFISICAL_SYSTEM_PROJECT_ID || "";
 
     try {
       await infisicalClient.deleteSecret({
@@ -124,7 +124,7 @@ export class CredentialVault {
   async rotate(userId: string, key: string, newValue: string): Promise<void> {
     const secretName = `${userId}/${key}`;
     const environment = process.env.INFISICAL_ENVIRONMENT || "development";
-    const projectId = process.env.INFISICAL_PROJECT_ID || "";
+    const projectId = process.env.INFISICAL_SYSTEM_PROJECT_ID || "";
 
     try {
       await infisicalClient.updateSecret({

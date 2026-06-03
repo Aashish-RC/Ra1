@@ -1,41 +1,18 @@
 import { InfisicalClient } from '@infisical/sdk';
-import { config } from 'dotenv';
 
-config();
+const SECRET_PREFIX = 'PROVIDER_KEY_';
 
 let _client: InfisicalClient | null = null;
-let _authenticated = false;
-
-// In-memory fallback store when Infisical is unreachable
-// DEVELOPMENT-ONLY: This is NOT a security control. Keys are stored as base64-encoded strings.
-// For production, always use Infisical which provides proper encryption at rest.
-// Key structure: providerId -> { encryptedKey, providerName, createdAt, lastTested, isValid }
-interface KeyEntry {
-  encryptedKey: string;
-  providerName: string;
-  createdAt: number;
-  lastUpdated: number;
-  isValid: boolean | null;
-}
-const _fallbackStore: Record<string, KeyEntry> = {};
 
 // Validation status map (transient — not persisted to Infisical)
 const _validationStatus = new Map<string, boolean | null>();
 
-const SECRET_PREFIX = 'PROVIDER_KEY_';
-
-function getConfig(): {
-  siteUrl: string;
-  clientId: string;
-  clientSecret: string;
-  projectId: string;
-  environment: string;
-} {
+function getConfig() {
   return {
     siteUrl: process.env.INFISICAL_URL || 'http://infisical:8080',
-    clientId: process.env.INFISICAL_CLIENT_ID || '',
-    clientSecret: process.env.INFISICAL_CLIENT_SECRET || '',
-    projectId: process.env.INFISICAL_PROJECT_ID || '',
+    serviceToken: process.env.INFISICAL_SERVICE_TOKEN || '',
+    systemProjectId: process.env.INFISICAL_SYSTEM_PROJECT_ID || '',
+    providersProjectId: process.env.INFISICAL_PROVIDERS_PROJECT_ID || '',
     environment: process.env.INFISICAL_ENVIRONMENT || 'dev',
   };
 }
@@ -58,64 +35,90 @@ export interface StoredKeyMetadata {
 }
 
 /**
- * Initialize and authenticate the Infisical SDK client.
- * Returns null if Infisical is unreachable or credentials are missing.
+ * Initialize the Infisical SDK client using a service token.
+ * If already initialized, returns the cached client.
  */
-export async function getClient(): Promise<InfisicalClient | null> {
+async function getClient(): Promise<InfisicalClient | null> {
   const cfg = getConfig();
-  if (!cfg.clientId || !cfg.clientSecret || !cfg.projectId) {
+  if (!cfg.serviceToken) {
     return null;
   }
 
-  if (_client && _authenticated) {
+  if (_client) {
     return _client;
   }
 
   try {
     _client = new InfisicalClient({
-      accessToken: cfg.clientSecret,
-    } as any);
-
-    _authenticated = true;
+      siteUrl: cfg.siteUrl,
+      accessToken: cfg.serviceToken,
+    });
     return _client;
   } catch {
-    // Infisical unreachable — will use fallback
     _client = null;
-    _authenticated = false;
     return null;
   }
 }
 
 /**
- * Store a key in Infisical (or fallback if unreachable).
+ * Get the project ID for a given scope.
+ * Admin shared keys live in the providers project.
+ * User BYOK keys also live in the providers project (with path prefix).
+ * System secrets are read-only via bootstrap and not accessed through this service.
+ */
+function getProjectId(userId?: string): string {
+  const cfg = getConfig();
+  return cfg.providersProjectId;
+}
+
+/**
+ * Get the Infisical secret path for a key.
+ * - userId null → admin shared keys at path /shared/
+ * - userId set   → user BYOK keys at path /users/{userId}/
+ */
+function getSecretPath(userId?: string): string {
+  return userId ? `/users/${userId}/` : '/shared/';
+}
+
+/**
+ * Store a key in Infisical.
+ * userId = null     → admin shared key (path: /shared/)
+ * userId = "abc123" → user BYOK key (path: /users/abc123/)
  */
 export async function saveKey(
   providerId: string,
   providerName: string,
-  rawKey: string
+  rawKey: string,
+  userId?: string
 ): Promise<StoredKeyMetadata> {
   const secretName = getSecretName(providerId);
   const cfg = getConfig();
   const client = await getClient();
 
   if (client) {
+    const projectId = getProjectId(userId);
+    const path = getSecretPath(userId);
+
     try {
-      // Try to create the secret first
-      await (client as any).secrets().createSecret(secretName, {
-        projectId: cfg.projectId,
+      await client.createSecret({
+        projectId,
         environment: cfg.environment,
+        secretName,
         secretValue: rawKey,
         secretComment: providerName,
+        path,
         type: 'shared',
       });
     } catch (createErr: any) {
       // If it already exists, update it
       if (createErr?.message?.includes('already exists') || createErr?.response?.status === 409) {
-        await (client as any).secrets().updateSecret(secretName, {
-          projectId: cfg.projectId,
+        await client.updateSecret({
+          projectId,
           environment: cfg.environment,
+          secretName,
           secretValue: rawKey,
           secretComment: providerName,
+          path,
           type: 'shared',
         });
       } else {
@@ -134,133 +137,135 @@ export async function saveKey(
     };
   }
 
-  // --- Fallback: in-memory store ---
-  const encryptedKey = Buffer.from(rawKey).toString('base64');
-  const now = Date.now();
-  const normalizedProviderId = providerId.toLowerCase();
-  _fallbackStore[normalizedProviderId] = {
-    encryptedKey,
-    providerName,
-    createdAt: now,
-    lastUpdated: now,
-    isValid: null,
-  };
-
-  return {
-    providerId,
-    providerName,
-    maskedValue: maskKey(rawKey),
-    lastUpdated: now,
-    isValid: null,
-  };
+  throw new Error('Infisical client not initialized — cannot store key without INFISICAL_SERVICE_TOKEN');
 }
 
 /**
  * Resolve (fetch) a raw key from Infisical.
+ * Checks user BYOK first (if userId provided), then falls back to admin shared key.
  */
-export async function resolveKey(providerId: string): Promise<string | null> {
+export async function resolveKey(providerId: string, userId?: string): Promise<string | null> {
   const secretName = getSecretName(providerId);
   const cfg = getConfig();
   const client = await getClient();
 
-  if (client) {
+  if (!client) {
+    throw new Error('Infisical client not initialized — cannot resolve key without INFISICAL_SERVICE_TOKEN');
+  }
+
+  const projectId = getProjectId(userId);
+
+  // If userId provided, check user BYOK first
+  if (userId) {
+    const userPath = getSecretPath(userId);
     try {
-      const secret = await (client as any).secrets().getSecret({
+      const secret = await client.getSecret({
         secretName,
-        projectId: cfg.projectId,
+        projectId,
         environment: cfg.environment,
+        path: userPath,
         type: 'shared',
       });
-      return secret.secretValue ?? null;
+      if (secret?.secretValue) {
+        return secret.secretValue;
+      }
     } catch {
-      // Fall through to fallback store
+      // User key not found, fall back to admin shared key
     }
   }
 
-  // Fallback
-  const entry = _fallbackStore[providerId.toLowerCase()];
-  if (!entry) return null;
-  return Buffer.from(entry.encryptedKey, 'base64').toString('utf8');
+  // Fall back to admin shared key
+  const sharedPath = getSecretPath();
+  try {
+    const secret = await client.getSecret({
+      secretName,
+      projectId,
+      environment: cfg.environment,
+      path: sharedPath,
+      type: 'shared',
+    });
+    return secret?.secretValue ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * List all stored keys with masked values.
+ * userId = null  → list admin shared keys (path: /shared/)
+ * userId = "abc" → list user BYOK keys (path: /users/abc/)
  */
-export async function listKeys(): Promise<StoredKeyMetadata[]> {
+export async function listKeys(userId?: string): Promise<StoredKeyMetadata[]> {
   const cfg = getConfig();
   const client = await getClient();
 
-  if (client) {
-    try {
-      const result = await (client as any).secrets().listSecrets({
-        projectId: cfg.projectId,
-        environment: cfg.environment,
-        recursive: false,
-      });
-
-      const providerKeys = (result.secrets ?? []).filter((s: any) =>
-        s.secretKey?.startsWith(SECRET_PREFIX)
-      );
-
-      return providerKeys.map((s: any) => {
-        const providerId = (s.secretKey as string).replace(SECRET_PREFIX, '').toLowerCase();
-        const rawValue = s.secretValue ?? '';
-        return {
-          providerId: providerId.toLowerCase(),
-          providerName: s.secretComment || providerId,
-          maskedValue: maskKey(rawValue),
-          lastUpdated: s.updatedAt ? new Date(s.updatedAt).getTime() : Date.now(),
-          isValid: _validationStatus.get(providerId.toLowerCase()) ?? null,
-        };
-      });
-    } catch {
-      return [];
-    }
+  if (!client) {
+    throw new Error('Infisical client not initialized — cannot list keys without INFISICAL_SERVICE_TOKEN');
   }
 
-  // Fallback
-  return Object.entries(_fallbackStore).map(([pid, entry]) => {
-    const rawKey = Buffer.from(entry.encryptedKey, 'base64').toString('utf8');
-    return {
-      providerId: pid,
-      providerName: entry.providerName,
-      maskedValue: maskKey(rawKey),
-      lastUpdated: entry.lastUpdated,
-      isValid: _validationStatus.get(pid) ?? entry.isValid,
-    };
-  });
+  const projectId = getProjectId(userId);
+  const path = getSecretPath(userId);
+
+  try {
+    const result = await client.listSecrets({
+      projectId,
+      environment: cfg.environment,
+      path,
+      recursive: false,
+    });
+
+    const secrets = Array.isArray(result) ? result : [];
+    const providerKeys = secrets.filter((s: any) =>
+      s.secretKey?.startsWith(SECRET_PREFIX)
+    );
+
+    return providerKeys.map((s: any) => {
+      const providerId = (s.secretKey as string).replace(SECRET_PREFIX, '').toLowerCase();
+      const rawValue = s.secretValue ?? '';
+      return {
+        providerId: providerId.toLowerCase(),
+        providerName: s.secretComment || providerId,
+        maskedValue: maskKey(rawValue),
+        lastUpdated: s.updatedAt ? new Date(s.updatedAt).getTime() : Date.now(),
+        isValid: _validationStatus.get(providerId.toLowerCase()) ?? null,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 /**
  * Delete a key from Infisical.
+ * userId = null  → revoke admin shared key
+ * userId = "abc" → revoke user BYOK key
  */
-export async function revokeKey(providerId: string): Promise<boolean> {
+export async function revokeKey(providerId: string, userId?: string): Promise<boolean> {
   const secretName = getSecretName(providerId);
   const cfg = getConfig();
   const client = await getClient();
   const normalizedId = providerId.toLowerCase();
 
-  if (client) {
-    try {
-      await (client as any).secrets().deleteSecret(secretName, {
-        projectId: cfg.projectId,
-        environment: cfg.environment,
-        type: 'shared',
-      });
-      _validationStatus.delete(normalizedId);
-      return true;
-    } catch {
-      return false;
-    }
+  if (!client) {
+    throw new Error('Infisical client not initialized — cannot revoke key without INFISICAL_SERVICE_TOKEN');
   }
 
-  // Fallback
-  if (_fallbackStore[normalizedId]) {
-    delete _fallbackStore[normalizedId];
+  const projectId = getProjectId(userId);
+  const path = getSecretPath(userId);
+
+  try {
+    await client.deleteSecret({
+      secretName,
+      projectId,
+      environment: cfg.environment,
+      path,
+      type: 'shared',
+    });
     _validationStatus.delete(normalizedId);
     return true;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 /**
@@ -268,11 +273,6 @@ export async function revokeKey(providerId: string): Promise<boolean> {
  */
 export function setValidationStatus(providerId: string, isValid: boolean | null): void {
   _validationStatus.set(providerId.toLowerCase(), isValid);
-  const entry = _fallbackStore[providerId.toLowerCase()];
-  if (entry) {
-    entry.isValid = isValid;
-    entry.lastUpdated = Date.now();
-  }
 }
 
 /**

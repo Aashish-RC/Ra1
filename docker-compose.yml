@@ -34,7 +34,7 @@ services:
     container_name: ra1-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ra1}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ra1secret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-ra1}
     ports:
       - "5432:5432"
@@ -71,7 +71,7 @@ services:
     container_name: ra1-redis
     ports:
       - "6379:6379"
-    command: --requirepass ${REDIS_AUTH:-ra1redissecret}
+    command: --requirepass ${REDIS_AUTH}
     volumes:
       - ra1-redis-data:/data
     networks:
@@ -106,14 +106,14 @@ services:
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - ra1-minio-data:/data
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "wget", "--spider", "http://localhost:9000/minio/health/live"]
       interval: 1s
       timeout: 5s
       retries: 5
@@ -136,9 +136,6 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   qdrant:
     image: qdrant/qdrant:v1.10.1
@@ -175,7 +172,7 @@ services:
     container_name: ra1-infisical-db
     environment:
       POSTGRES_USER: infisical
-      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD:-infisical-secret}
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD}
       POSTGRES_DB: infisical
     volumes:
       - ra1-infisical-pgdata:/var/lib/postgresql/data
@@ -196,7 +193,7 @@ services:
       NODE_ENV: production
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
-      DB_CONNECTION_STRING: postgresql://infisical:${INFISICAL_DB_PASSWORD:-infisical-secret}@infisical-db:5432/infisical
+      DB_CONNECTION_STRING: postgresql://infisical:${INFISICAL_DB_PASSWORD}@infisical-db:5432/infisical
       POSTHOG_HOST: ""
       SITE_URL: http://localhost:8080
       TELEMETRY_ENABLED: "false"
@@ -252,7 +249,7 @@ services:
     ports:
       - "3002:3000"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ra1}:${POSTGRES_PASSWORD:-ra1secret}@postgres:5432/langfuse
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ra1}:${POSTGRES_PASSWORD}@postgres:5432/langfuse
       NEXTAUTH_SECRET: ${LANGFUSE_SALT}
       SALT: ${LANGFUSE_SALT}
       NEXTAUTH_URL: http://localhost:3002
@@ -266,19 +263,19 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
-      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
-      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
-      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_AUTH: ${REDIS_AUTH:-ra1redissecret}
+      REDIS_AUTH: ${REDIS_AUTH}
     networks:
       - ra1-network
     depends_on:
@@ -295,7 +292,7 @@ services:
     image: docker.io/langfuse/langfuse-worker:3
     container_name: ra1-langfuse-worker
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ra1}:${POSTGRES_PASSWORD:-ra1secret}@postgres:5432/langfuse
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ra1}:${POSTGRES_PASSWORD}@postgres:5432/langfuse
       SALT: ${LANGFUSE_SALT}
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
       CLICKHOUSE_URL: http://clickhouse:8123
@@ -303,7 +300,7 @@ services:
       CLICKHOUSE_PASSWORD: clickhouse
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_AUTH: ${REDIS_AUTH:-ra1redissecret}
+      REDIS_AUTH: ${REDIS_AUTH}
     networks:
       - ra1-network
     depends_on:
@@ -328,13 +325,15 @@ services:
       - ra1-librechat-images:/app/client/public/images
     environment:
       MONGO_URI: mongodb://mongodb:27017/LibreChat
+      ENDPOINTS: custom
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       CREDS_KEY: ${CREDS_KEY}
       CREDS_IV: ${CREDS_IV}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      ALLOW_REGISTRATION: "true"
-      ALLOW_SOCIAL_LOGIN: "false"
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      ALLOW_SOCIAL_LOGIN: ${ALLOW_SOCIAL_LOGIN:-false}
     networks:
       - ra1-network
     depends_on:
@@ -355,7 +354,8 @@ services:
       - INFISICAL_URL=${INFISICAL_URL}
       - INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN}
       - INFISICAL_ENVIRONMENT=${INFISICAL_ENVIRONMENT}
-      - INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID}
+      - INFISICAL_SYSTEM_PROJECT_ID=${INFISICAL_SYSTEM_PROJECT_ID}
+      - INFISICAL_PROVIDERS_PROJECT_ID=${INFISICAL_PROVIDERS_PROJECT_ID}
       - DATABASE_URL=${DATABASE_URL}
       - VALKEY_URL=${VALKEY_URL}
       - CLICKHOUSE_URL=${CLICKHOUSE_URL}

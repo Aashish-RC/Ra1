@@ -1,18 +1,31 @@
-version: 1.1.5
+version: 1.2.1
 
 cache: true
 
 endpoints:
   custom:
-    - name: "RA1"
+    - name: "Pepper"
       apiKey: "${LITELLM_MASTER_KEY}"
       baseURL: "http://litellm:4000"
       models:
-        default: ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "claude-3-haiku"]
+        default:
+          - "gemini-2.0-flash"
+          - "gemini-1.5-flash"
+          - "gemini-1.5-pro"
+          - "gpt-4o"
+          - "gpt-4o-mini"
+          - "claude-3-5-sonnet"
+          - "claude-3-5-haiku"
+          - "claude-3-haiku"
+          - "mistral-large"
+          - "llama-3.1-70b"
         fetch: false
       titleConvo: true
       titleModel: "gemini-2.0-flash"
       summarize: false
+      summaryModel: "gemini-2.0-flash"
       forcePrompt: false
-      modelDisplayLabel: "RA1"
+      modelDisplayLabel: "Pepper"
       iconURL: ""
+      dropParams:
+        - "stop"

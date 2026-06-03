@@ -1,32 +1,41 @@
 import { InfisicalClient } from "@infisical/sdk";
-import { setSecrets, appSecretsSchema } from "./secrets";
+import { setSecrets, systemSecretsSchema } from "./secrets";
 import { logger } from "../lib/logger";
 
 export let infisicalClient: InfisicalClient;
 
 export async function bootstrap(): Promise<void> {
-  if (!process.env.INFISICAL_SERVICE_TOKEN) {
+  const infisicalUrl = process.env.INFISICAL_URL || "http://infisical:8080";
+  const serviceToken = process.env.INFISICAL_SERVICE_TOKEN;
+  const systemProjectId = process.env.INFISICAL_SYSTEM_PROJECT_ID;
+  const environment = process.env.INFISICAL_ENVIRONMENT || "dev";
+
+  if (!serviceToken) {
     throw new Error("INFISICAL_SERVICE_TOKEN is required");
+  }
+  if (!systemProjectId) {
+    throw new Error("INFISICAL_SYSTEM_PROJECT_ID is required");
   }
 
   infisicalClient = new InfisicalClient({
-    siteUrl: process.env.INFISICAL_URL || "https://app.infisical.com",
-    accessToken: process.env.INFISICAL_SERVICE_TOKEN,
+    siteUrl: infisicalUrl,
+    accessToken: serviceToken,
   });
 
-  const secretsList = await infisicalClient.listSecrets({
-    projectId: process.env.INFISICAL_PROJECT_ID || "",
-    environment: process.env.INFISICAL_ENVIRONMENT || "development",
+  // 1. Read system secrets (DB, Redis, MinIO, JWT, LiteLLM, Langfuse, LibreChat)
+  const systemSecrets = await infisicalClient.listSecrets({
+    projectId: systemProjectId,
+    environment,
   });
 
-  const secrets: Record<string, string> = {};
-  for (const item of secretsList) {
-    secrets[item.secretKey] = item.secretValue;
+  const secretsMap: Record<string, string> = {};
+  for (const s of systemSecrets) {
+    secretsMap[s.secretKey] = s.secretValue;
   }
 
-  const parsed = appSecretsSchema.parse(secrets);
+  const parsed = systemSecretsSchema.parse(secretsMap);
   setSecrets(parsed);
 
-  const environment = process.env.INFISICAL_ENVIRONMENT || "development";
-  logger.info(`Configuration bootstrapped successfully in ${environment} environment with ${secretsList.length} secrets loaded`);
+  const env = process.env.INFISICAL_ENVIRONMENT || "development";
+  logger.info(`Bootstrap complete: ${systemSecrets.length} system secrets loaded in ${env} environment`);
 }
