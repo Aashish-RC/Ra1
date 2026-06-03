@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { resolveKey } from '../services/infisical.service';
+import { LITELLM_PROVIDER_PREFIX } from '@ra1/types';
 
 // ─── Provider API Config ────────────────────────────────────────────────────
 
@@ -14,19 +15,6 @@ const SUPPORTED_PROVIDERS = [
 ] as const;
 
 type ProviderId = typeof SUPPORTED_PROVIDERS[number];
-
-/**
- * LiteLLM provider prefix mapping.
- */
-const LITELLM_PREFIX: Record<string, string> = {
-  openai: 'openai',
-  anthropic: 'anthropic',
-  google: 'gemini',
-  mistral: 'mistral',
-  cohere: 'cohere',
-  groq: 'groq',
-  together: 'together',
-};
 
 /**
  * Deprecation patterns used to detect deprecated models from IDs.
@@ -148,7 +136,7 @@ async function registerModelWithLiteLLM(
   modelId: string,
   apiKey: string,
 ): Promise<void> {
-  const prefix = LITELLM_PREFIX[providerId] || providerId;
+  const prefix = LITELLM_PROVIDER_PREFIX[providerId] || providerId;
   const litellmParams: Record<string, string> = {
     model: `${prefix}/${modelId}`,
     api_key: apiKey,
@@ -289,7 +277,7 @@ async function updateLiteLLMForChanges(
   for (const model of removed) {
     try {
       // LiteLLM uses the prefixed model ID as the model identifier
-      const prefix = LITELLM_PREFIX[providerId] || providerId;
+const prefix = LITELLM_PROVIDER_PREFIX[providerId] || providerId;
       await unregisterModelFromLiteLLM(`${prefix}/${model.id}`);
     } catch (err: any) {
       console.error(`[modelSync] LiteLLM unregister failed for ${providerId}/${model.id}: ${err.message}`);
@@ -444,5 +432,5 @@ export function triggerSyncNow(pool: Pool): void {
  * Get the LiteLLM prefix for a provider (used by routes).
  */
 export function getLiteLLMPrefix(providerId: string): string {
-  return LITELLM_PREFIX[providerId] || providerId;
+  return LITELLM_PROVIDER_PREFIX[providerId] || providerId;
 }

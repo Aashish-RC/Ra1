@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { saveKeyToVault, listVaultKeys, resolveVaultKey, revokeVaultKey, updateKeyStatus } from '../services/vault.service'
 
+const IS_DEV = import.meta.env.DEV;
+
 export interface VaultEntry {
   providerId: string
   providerName: string
@@ -30,9 +32,11 @@ const STORAGE_KEY = 'ra1-vault-v1'
 const _fallbackRaw: Record<string, string> = {}
 
 function loadFallbackMeta(): Record<string, VaultEntry> {
+  if (!IS_DEV) return {};
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') } catch { return {} }
 }
 function saveFallbackMeta(entries: Record<string, VaultEntry>) {
+  if (!IS_DEV) return;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)) } catch {}
 }
 
@@ -48,13 +52,13 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     try {
       const entry = await saveKeyToVault(providerId, providerName, rawKey)
       // Also keep a copy in _fallbackRaw for resolveKey fallback
-      _fallbackRaw[providerId.toLowerCase()] = rawKey
+      if (IS_DEV) _fallbackRaw[providerId.toLowerCase()] = rawKey
       const entries = { ...get().entries, [providerId]: entry }
       saveFallbackMeta(entries)
       set({ entries, isOnline: true })
     } catch {
       // Fallback to local-only
-      _fallbackRaw[providerId.toLowerCase()] = rawKey
+      if (IS_DEV) _fallbackRaw[providerId.toLowerCase()] = rawKey
       const entry: VaultEntry = { providerId, providerName, maskedValue: '••••••••', lastUpdated: Date.now(), isValid: null }
       const entries = { ...get().entries, [providerId]: entry }
       saveFallbackMeta(entries)
@@ -70,11 +74,13 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       set({ isOnline: false })
     }
     // Always remove locally
-    delete _fallbackRaw[providerId.toLowerCase()]
-    const entries = { ...get().entries }
-    delete entries[providerId]
-    saveFallbackMeta(entries)
-    set({ entries })
+    if (IS_DEV) {
+      delete _fallbackRaw[providerId.toLowerCase()]
+      const entries = { ...get().entries }
+      delete entries[providerId]
+      saveFallbackMeta(entries)
+      set({ entries })
+    }
   },
 
   setKeyValid: async (providerId, isValid) => {
@@ -84,11 +90,13 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch {
       set({ isOnline: false })
     }
-    const entries = { ...get().entries }
-    if (entries[providerId]) {
-      entries[providerId] = { ...entries[providerId], isValid }
-      saveFallbackMeta(entries)
-      set({ entries })
+    if (IS_DEV) {
+      const entries = { ...get().entries }
+      if (entries[providerId]) {
+        entries[providerId] = { ...entries[providerId], isValid }
+        saveFallbackMeta(entries)
+        set({ entries })
+      }
     }
   },
 
@@ -102,10 +110,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const entries: Record<string, VaultEntry> = {}
       for (const key of keys) {
         entries[key.providerId] = key
-        try {
-          const rawKey = await resolveVaultKey(key.providerId)
-          if (rawKey) _fallbackRaw[key.providerId.toLowerCase()] = rawKey
-        } catch { /* non-fatal */ }
+        if (IS_DEV) {
+          try {
+            const rawKey = await resolveVaultKey(key.providerId)
+            if (rawKey) _fallbackRaw[key.providerId.toLowerCase()] = rawKey
+          } catch { /* non-fatal */ }
+        }
       }
       saveFallbackMeta(entries)
       set({ entries, isOnline: true })
@@ -123,6 +133,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch {
       // Fall through to local fallback
     }
+    if (!IS_DEV) throw new Error('Vault backend unavailable');
     return _fallbackRaw[providerId] ?? null
   },
 
@@ -140,5 +151,6 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 // Called by the engine at call-time — uses the store's async resolveKey
 // Legacy synchronous version for backward compatibility
 export function resolveKey(providerId: string): string | null {
+  if (!IS_DEV) return null;
   return _fallbackRaw[providerId.toLowerCase()] ?? null
 }

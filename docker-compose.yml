@@ -77,7 +77,7 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_AUTH\" ping"]
       interval: 3s
       timeout: 10s
       retries: 10

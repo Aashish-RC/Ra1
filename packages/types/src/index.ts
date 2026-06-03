@@ -215,3 +215,14 @@ export interface ProviderEntry {
   icon?: string;
   color?: string;
 }
+
+export const LITELLM_PROVIDER_PREFIX: Record<string, string> = {
+  openai: 'openai',
+  anthropic: 'anthropic',
+  google: 'gemini',
+  gemini: 'gemini',
+  mistral: 'mistral',
+  cohere: 'cohere',
+  together: 'together_ai',
+  groq: 'groq',
+};

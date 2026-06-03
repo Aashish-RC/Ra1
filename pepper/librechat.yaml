@@ -19,8 +19,6 @@ endpoints:
           - "claude-3-5-sonnet"
           - "claude-3-5-haiku"
           - "claude-3-haiku"
-          - "mistral-large"
-          - "llama-3.1-70b"
         fetch: false
       titleConvo: true
       titleModel: "gemini-2.0-flash"

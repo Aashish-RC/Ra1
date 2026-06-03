@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { matchModels, canDoTask } from '../../services/task-matcher.service';
 import { executeWithFallback } from '../../services/fallback-router.service';
+import { LITELLM_PROVIDER_PREFIX } from '@ra1/types';
 import type { TaskRequest } from '../../services/task-matcher.service';
 import type { FallbackResult } from '../../services/fallback-router.service';
 
@@ -119,16 +120,7 @@ export async function proxyChatRequest(
   const result = await executeWithFallback(
     modelList.map(m => ({ model_id: m, provider: '', display_name: '', score: 0, capabilities: [], context_window: 0, input_price: 0, output_price: 0, speed: 'standard' as any, free_tier: null })),
     async (modelId: string) => {
-      const modelProviderPrefix = Object.keys({
-        openai: 'openai/',
-        anthropic: 'anthropic/',
-        google: 'gemini/',
-        gemini: 'gemini/',
-        mistral: 'mistral/',
-        cohere: 'cohere/',
-        together: 'together_ai/',
-        groq: 'groq/',
-      } as Record<string, string>).find(p =>
+      const modelProviderPrefix = Object.keys(LITELLM_PROVIDER_PREFIX).find(p =>
         modelId.startsWith(p) || modelId.includes(p)
       );
       const modelByokKey = modelProviderPrefix ? await resolveKey(modelProviderPrefix) : null;
@@ -162,16 +154,7 @@ export async function proxyChatRequest(
 
       const modelStartTime = Date.now();
       try {
-        const modelProviderPrefix = Object.keys({
-          openai: 'openai/',
-          anthropic: 'anthropic/',
-          google: 'gemini/',
-          gemini: 'gemini/',
-          mistral: 'mistral/',
-          cohere: 'cohere/',
-          together: 'together_ai/',
-          groq: 'groq/',
-        } as Record<string, string>).find(p =>
+        const modelProviderPrefix = Object.keys(LITELLM_PROVIDER_PREFIX).find(p =>
           model.startsWith(p) || model.includes(p)
         );
         const modelByokKey = modelProviderPrefix ? await resolveKey(modelProviderPrefix) : null;
