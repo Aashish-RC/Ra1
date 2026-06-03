@@ -194,6 +194,12 @@ services:
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       DB_CONNECTION_STRING: postgresql://infisical:${INFISICAL_DB_PASSWORD}@infisical-db:5432/infisical
+      DB_HOST: infisical-db
+      DB_PORT: 5432
+      DB_NAME: infisical
+      DB_USER: infisical
+      DB_PASSWORD: ${INFISICAL_DB_PASSWORD}
+      REDIS_URL: redis://default:${REDIS_AUTH}@redis:6379
       POSTHOG_HOST: ""
       SITE_URL: http://localhost:8080
       TELEMETRY_ENABLED: "false"
