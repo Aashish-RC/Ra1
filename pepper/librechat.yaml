@@ -1,5 +1,7 @@
 version: 1.2.1
 
+app_secret: "${LIBRECHAT_APP_SECRET}"
+
 cache: true
 
 endpoints:

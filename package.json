@@ -1,5 +1,11 @@
 {
   "name": "ra1-workspace",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter=!@ra1/types dev",
+    "build": "pnpm --filter @ra1/types build && pnpm -r --filter=!@ra1/types build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  }
 }
