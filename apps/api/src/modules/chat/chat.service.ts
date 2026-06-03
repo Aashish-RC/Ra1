@@ -123,7 +123,7 @@ export async function proxyChatRequest(
       const modelProviderPrefix = Object.keys(LITELLM_PROVIDER_PREFIX).find(p =>
         modelId.startsWith(p) || modelId.includes(p)
       );
-      const modelByokKey = modelProviderPrefix ? await resolveKey(modelProviderPrefix) : null;
+      const modelByokKey = modelProviderPrefix ? await await resolveKey(modelProviderPrefix, userId) : null;
       actualIsByok = !!modelByokKey;
 
       const response = await fetch(`${litellmUrl}/chat/completions`, {
@@ -157,7 +157,7 @@ export async function proxyChatRequest(
         const modelProviderPrefix = Object.keys(LITELLM_PROVIDER_PREFIX).find(p =>
           model.startsWith(p) || model.includes(p)
         );
-        const modelByokKey = modelProviderPrefix ? await resolveKey(modelProviderPrefix) : null;
+        const modelByokKey = modelProviderPrefix ? await await resolveKey(modelProviderPrefix, userId) : null;
         actualIsByok = !!modelByokKey;
 
         const response = await fetch(`${litellmUrl}/chat/completions`, {
