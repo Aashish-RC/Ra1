@@ -88,6 +88,7 @@ export default function ModelTestPage() {
   const [mode, setMode] = useState<'auto' | 'manual'>('auto')
   const [pinnedModel, setPinnedModel] = useState<string | null>(null)
   const [autoModel, setAutoModel] = useState<string | null>(null)
+  const [lastUsedModel, setLastUsedModel] = useState<string | null>(null)
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState<string | null>(null)
@@ -240,6 +241,7 @@ export default function ModelTestPage() {
         error: null,
         errorType: null,
       }
+      setLastUsedModel(data.model || null)
       setChatHistory(prev => [...prev, exchange])
     } catch (err: any) {
       const exchange: ChatExchange = {
@@ -257,8 +259,10 @@ export default function ModelTestPage() {
       setChatHistory(prev => [...prev, exchange])
     } finally {
       setSending(false)
+      loadCooldowns()
+      loadScores()
     }
-  }, [chatInput, mode, pinnedModel])
+  }, [chatInput, mode, pinnedModel, loadCooldowns, loadScores, setLastUsedModel])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -309,6 +313,7 @@ export default function ModelTestPage() {
 
   // ── Helpers (render) ──────────────────────────────────────────────────────
   function getActiveModel(): string | null {
+    if (lastUsedModel) return lastUsedModel
     if (mode === 'auto') return autoModel
     return pinnedModel
   }
