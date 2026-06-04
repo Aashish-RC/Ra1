@@ -14,6 +14,7 @@ interface CanvasStore {
   onEdgesChange: (changes: EdgeChange[]) => void
   dropProvider: (providerId: ProviderId, position: XYPosition) => void
   removeProviderNode: (nodeId: string) => void
+  onKeyStored: (providerId: string) => void
 }
 
 function systemNode(id: string, type: string, x: number, y: number): Node {
@@ -38,10 +39,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       systemNode('model', 'model-node', 400, 200),
       systemNode('vault', 'vault-node', 120, 200),
     ]
-    const edges: Edge[] = [
-      { id: 'e-vault-model', source: 'vault', target: 'model', ...edgeStyle('#f8961e') },
-    ]
-    set({ nodes, edges })
+    set({ nodes, edges: [] })  // no edges on init — edges appear as providers are added
   },
 
   toggleExpand: (id) => {
@@ -84,20 +82,52 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       deletable: true,
     }
 
-    const newEdge: Edge = {
-      id: `e-${nodeId}-model`,
+    const providerToVault: Edge = {
+      id: `e-${nodeId}-vault`,
       source: nodeId,
-      target: 'model',
-      ...edgeStyle('#6c63ff', true),
+      target: 'vault',
+      ...edgeStyle('#f8961e', false),   // orange, NOT animated until key saved
+      style: { stroke: '#f8961e', strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.6 },
     }
+
+    const vaultToModel: Edge = {
+      id: 'e-vault-model',
+      source: 'vault',
+      target: 'model',
+      ...edgeStyle('#f8961e', false),   // starts non-animated
+    }
+
+    // Only add vault-model edge if it doesn't already exist
+    const edges = get().edges
+    const vaultModelExists = edges.some(e => e.id === 'e-vault-model')
 
     const next = new Set(get().expandedIds)
     next.add(nodeId)
 
     set(s => ({
       nodes: [...s.nodes, newNode],
-      edges: [...s.edges, newEdge],
+      edges: [
+        ...s.edges,
+        providerToVault,
+        ...(vaultModelExists ? [] : [vaultToModel]),
+      ],
       expandedIds: next,
+    }))
+  },
+
+  onKeyStored: (providerId: string) => {
+    set(s => ({
+      edges: s.edges.map(e => {
+        // Animate the provider→vault edge for this provider
+        if (e.source.includes(providerId) && e.target === 'vault') {
+          return { ...e, animated: true, style: { stroke: '#f8961e', strokeWidth: 2, opacity: 1 } }
+        }
+        // Animate vault→model once any key is stored
+        if (e.id === 'e-vault-model') {
+          return { ...e, animated: true, style: { stroke: '#f8961e', strokeWidth: 2, opacity: 1 } }
+        }
+        return e
+      })
     }))
   },
 

@@ -508,3 +508,10 @@
 .mtp-overflow-auto {
   overflow-x: auto;
 }
+
+@keyframes fadeInOut {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}

@@ -125,7 +125,7 @@ switch ($Action) {
             $attempts++
             Write-Host -NoNewline "."
             try {
-                $r = Invoke-WebRequest -Uri "http://localhost:3001/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+                $r = Invoke-WebRequest -Uri "http://localhost:3001/health/live" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
                 $healthy = $r.StatusCode -eq 200
             } catch { $healthy = $false }
         } while (-not $healthy -and $attempts -lt 30)

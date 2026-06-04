@@ -122,7 +122,7 @@ case "$ACTION" in
     echo ""
     echo "Waiting for API to be healthy..."
     attempts=0
-    until docker compose exec -T api wget -q --spider http://127.0.0.1:3001/health 2>/dev/null; do
+    until docker compose exec -T api wget -q --spider http://127.0.0.1:3001/health/live 2>/dev/null; do
       attempts=$((attempts + 1))
       if [ $attempts -ge 30 ]; then
         echo "API didn't become healthy in time - check logs: ./run.sh logs api"

@@ -4,57 +4,71 @@ import { useModelStore } from '../store/model.store'
 import { useVaultStore } from '../store/vault.store'
 import { useCanvasStore } from '../store/canvasStore'
 import { PROVIDER_REGISTRY, ProviderId, CAP_LABELS } from '../data/providers'
+import './ProviderNode.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-const S = {
-  input: { width: '100%', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 11, padding: '6px 10px', fontFamily: 'var(--font)', outline: 'none' } as React.CSSProperties,
-  label: { display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, marginTop: 10 } as React.CSSProperties,
-  select: { width: '100%', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 11, padding: '6px 28px 6px 10px', fontFamily: 'var(--font)', outline: 'none', appearance: 'none' as const, cursor: 'pointer' } as React.CSSProperties,
-  toggle: (on: boolean, disabled?: boolean) => ({ width: 36, height: 20, borderRadius: 10, background: on ? 'var(--accent)' : 'var(--border-bright)', cursor: disabled ? 'not-allowed' : 'pointer', position: 'relative' as const, flexShrink: 0, transition: 'background 0.2s', opacity: disabled ? 0.5 : 1 }),
-  knob: (on: boolean) => ({ position: 'absolute' as const, top: 2, left: on ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }),
-  tinyBtn: { fontSize: 10, padding: '4px 8px', background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  accentBtn: { fontSize: 10, padding: '4px 8px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' as const },
-}
-
 function ModelRow({
   model,
-  providerColor,
   onToggle,
 }: {
   model: { id: string; name: string; enabled: boolean; deprecated?: boolean; newlyDiscovered?: boolean; capabilities: string[] }
-  providerColor: string
   onToggle: (id: string) => void
 }) {
   const disabled = !!model.deprecated
+  const isDisabled = disabled ? ' pn-toggle--disabled' : ''
+  const toggleClass = `pn-toggle ${model.enabled ? 'pn-toggle--on' : 'pn-toggle--off'}${isDisabled}`
+  const knobClass = `pn-knob ${model.enabled ? 'pn-knob--on' : 'pn-knob--off'}`
+  const rowClass = `pn-model-row${disabled ? ' pn-model-row--disabled' : ''}${model.newlyDiscovered ? ' pn-model-row--highlight' : ''}`
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '4px 6px', borderRadius: 4,
-      background: model.newlyDiscovered ? `${providerColor}12` : 'transparent',
-      opacity: disabled ? 0.55 : 1,
-    }}>
-      <div style={S.toggle(model.enabled, disabled)} onClick={() => !disabled && onToggle(model.id)}>
-        <div style={S.knob(model.enabled)} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary)' }}>{model.name}</span>
+    <div
+      className={rowClass}
+      data-highlight={model.newlyDiscovered ? 'true' : undefined}
+    >
+      {model.enabled ? (
+        <div
+          className={toggleClass}
+          onClick={() => !disabled && onToggle(model.id)}
+          role="switch"
+          aria-checked="true"
+          aria-label={`Toggle ${model.name}`}
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!disabled) onToggle(model.id) } }}
+        >
+          <div className={knobClass} />
+        </div>
+      ) : (
+        <div
+          className={toggleClass}
+          onClick={() => !disabled && onToggle(model.id)}
+          role="switch"
+          aria-checked="false"
+          aria-label={`Toggle ${model.name}`}
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!disabled) onToggle(model.id) } }}
+        >
+          <div className={knobClass} />
+        </div>
+      )}
+      <div className="pn-flex-fill">
+        <div className="pn-flex-row">
+          <span className="pn-model-row-name">{model.name}</span>
           {model.newlyDiscovered && (
-            <span style={{ fontSize: 8, background: '#22c55e22', color: '#22c55e', padding: '0 4px', borderRadius: 3, fontWeight: 700 }}>NEW</span>
+            <span className="pn-model-row-badge-new">NEW</span>
           )}
           {model.deprecated && (
-            <span style={{ fontSize: 8, background: '#ef444422', color: '#ef4444', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>DEPR</span>
+            <span className="pn-model-row-badge-depr">DEPR</span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
+        <div className="pn-flex-gap">
           {model.capabilities.slice(0, 3).map(cap => (
-            <span key={cap} style={{ fontSize: 8, padding: '0 4px', background: 'var(--bg-surface)', borderRadius: 2, color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+            <span key={cap} className="pn-model-row-cap">
               {CAP_LABELS[cap as keyof typeof CAP_LABELS] || cap}
             </span>
           ))}
           {model.capabilities.length > 3 && (
-            <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>+{model.capabilities.length - 3}</span>
+            <span className="pn-model-row-cap-more">+{model.capabilities.length - 3}</span>
           )}
         </div>
       </div>
@@ -74,6 +88,7 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
   const [editKey, setEditKey] = useState('')
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [allowImageUploads, setAllowImageUploads] = useState(false)
+  const [keySaved, setKeySaved] = useState(false)
 
   const keyEntry = getEntry(providerId)
   const keyStored = hasKey(providerId)
@@ -83,6 +98,9 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
     await saveKey(providerId, def.name, editKey.trim())
     setEditKey('')
     setShowKeyInput(false)
+    useCanvasStore.getState().onKeyStored(providerId)
+    setKeySaved(true)
+    setTimeout(() => setKeySaved(false), 2000)
     setTimeout(() => handleTestConnection(), 300)
   }
 
@@ -117,49 +135,77 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
   const isLive = hoursAgo !== null && hoursAgo < 6
 
   return (
-    <div style={{ width: 300, background: 'var(--bg-node)', border: `1px solid ${def.color}`, borderRadius: 'var(--radius)', overflow: 'hidden', boxShadow: `0 0 0 1px ${def.color}33, 0 8px 32px rgba(0,0,0,0.5)`, display: 'flex', flexDirection: 'column' }}
-      onClick={e => e.stopPropagation()}>
-
-      <div style={{ background: `${def.color}18`, borderBottom: '1px solid var(--border)', padding: '10px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16 }}>{def.icon}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>{def.name}</span>
-          <button onClick={() => removeProviderNode(nodeId)} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }} title="Remove provider">✕</button>
+    <div
+      className="pn-expanded"
+      data-provider={providerId}
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="pn-expanded-header">
+        {keySaved && (
+          <div className="pn-expanded-header-bar">
+            🔑 Key stored in Vault
+          </div>
+        )}
+        <div className="pn-expanded-header-row">
+          <span className="pn-expanded-header-icon">{def.icon}</span>
+          <span className="pn-expanded-header-name">{def.name}</span>
+          <button
+            onClick={() => removeProviderNode(nodeId)}
+            className="pn-expanded-header-close"
+            title="Remove provider"
+            aria-label="Remove provider"
+          >✕</button>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Inputs</span>
+        <div className="pn-expanded-header-inputs-wrap">
+          <span className="pn-expanded-header-inputs-text">Inputs</span>
         </div>
       </div>
 
-      <div style={{ padding: '4px 12px 12px', display: 'flex', flexDirection: 'column' }}>
+      <div className="pn-expanded-body">
         {def.requiresKey && (
           <>
-            <label style={S.label}>Connect Credential <span style={{ color: '#ef4444' }}>*</span></label>
+            <label className="pn-label" htmlFor="provider-api-key-input">Connect Credential <span className="pn-required-star">*</span></label>
             {!keyStored && !showKeyInput ? (
               <button
                 onClick={() => setShowKeyInput(true)}
-                style={{ width: '100%', padding: '7px 10px', fontSize: 11, background: '#f8961e22', border: '1px dashed #f8961e', borderRadius: 6, color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'center' }}
+                className="pn-add-key-btn"
+                aria-label="Add API Key"
               >
                 + Add API Key
               </button>
             ) : showKeyInput ? (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input type="password" value={editKey} onChange={e => setEditKey(e.target.value)} placeholder="Paste API key..." style={{ ...S.input, flex: 1 }} autoFocus />
-                <button onClick={handleSaveKey} style={{ fontSize: 10, padding: '6px 8px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}>Save</button>
-                <button onClick={() => { setShowKeyInput(false); setEditKey('') }} style={{ fontSize: 10, padding: '6px 8px', background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>✕</button>
+              <div className="pn-key-input-row">
+                <input
+                  id="provider-api-key-input"
+                  type="password"
+                  value={editKey}
+                  onChange={e => setEditKey(e.target.value)}
+                  placeholder="Paste API key..."
+                  className="pn-input"
+                  autoFocus
+                />
+                <button onClick={handleSaveKey} className="pn-key-save-btn" aria-label="Save key">Save</button>
+                <button
+                  onClick={() => { setShowKeyInput(false); setEditKey('') }}
+                  className="pn-key-cancel-btn"
+                  aria-label="Cancel key input"
+                >✕</button>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ flex: 1, background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)' }}>
-                  {keyEntry?.maskedValue} <span style={{ color: keyEntry?.isValid === true ? '#22c55e' : keyEntry?.isValid === false ? '#ef4444' : '#f59e0b', marginLeft: 4 }}>{keyEntry?.isValid === true ? '✓' : keyEntry?.isValid === false ? '✗' : '?'}</span>
+              <div className="pn-key-stored-row">
+                <div className="pn-key-masked">
+                  {keyEntry?.maskedValue} <span className="pn-key-status-icon" data-key-valid={keyEntry?.isValid === true ? 'true' : keyEntry?.isValid === false ? 'false' : 'unknown'}>{keyEntry?.isValid === true ? '✓' : keyEntry?.isValid === false ? '✗' : '?'}</span>
                 </div>
-                <button onClick={handleTestConnection} style={{ fontSize: 10, padding: '4px 8px', background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>Test</button>
-                <button onClick={() => { setShowKeyInput(true) }} style={{ fontSize: 10, padding: '4px 8px', background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>Rotate</button>
+                <button onClick={handleTestConnection} className="pn-key-action-btn" aria-label="Test connection">Test</button>
+                <button onClick={() => { setShowKeyInput(true) }} className="pn-key-action-btn" aria-label="Rotate key">Rotate</button>
               </div>
             )}
             {keyStored && !showKeyInput && (
-              <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: keyEntry?.isValid === null ? '#6b7280' : keyEntry?.isValid ? '#22c55e' : '#ef4444' }} />
+              <div className="pn-key-status-row">
+                <span
+                  className="pn-key-status-dot"
+                  data-key-status={keyEntry?.isValid === null ? 'unknown' : keyEntry?.isValid ? 'valid' : 'invalid'}
+                />
                 {keyEntry?.providerName} · {keyEntry?.isValid === null ? 'untested' : keyEntry?.isValid ? 'valid' : 'invalid'}
                 {keyEntry && <span>· {new Date(keyEntry.lastUpdated).toLocaleDateString()}</span>}
               </div>
@@ -167,93 +213,107 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
           </>
         )}
 
-        <label style={S.label}>Models <span style={{ color: '#ef4444' }}>*</span></label>
+        <label className="pn-label">Models <span className="pn-required-star">*</span></label>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <div className="pn-sync-row">
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            style={{
-              ...S.tinyBtn,
-              opacity: isSyncing ? 0.6 : 1,
-              cursor: isSyncing ? 'wait' : 'pointer',
-            }}
+            className={`pn-tiny-btn${isSyncing ? ' pn-sync-btn--syncing' : ''}`}
+            aria-label={isSyncing ? 'Syncing models' : 'Sync models'}
           >
             {isSyncing ? '⟳ Syncing...' : '⟳ Sync Models'}
           </button>
           {syncErr && (
-            <span style={{ fontSize: 9, color: '#ef4444', flex: 1 }} title={syncErr}>Sync failed</span>
+            <span className="pn-sync-error" title={syncErr}>Sync failed</span>
           )}
           {!syncErr && provider.models.length > 0 && (
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', flex: 1 }}>
+            <span className="pn-sync-info">
               {enabledModels.length} active · {provider.models.filter(m => m.deprecated).length} deprecated · {provider.models.filter(m => m.newlyDiscovered).length} new
             </span>
           )}
         </div>
 
-        <div style={{
-          maxHeight: 180, overflowY: 'auto',
-          background: 'var(--bg-base)', borderRadius: 6,
-          border: '1px solid var(--border)', padding: 4,
-        }}>
+        <div className="pn-model-list">
           {provider.models.length === 0 ? (
-            <div style={{ padding: '8px 6px', fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+            <div className="pn-model-list-empty">
               No models yet. Click Sync Models.
             </div>
           ) : (
             provider.models.map(m => (
-              <ModelRow key={m.id} model={m} providerColor={def.color} onToggle={handleToggle} />
+              <ModelRow key={m.id} model={m} onToggle={handleToggle} />
             ))
           )}
         </div>
 
-        <label style={S.label}>Temperature</label>
+        <label className="pn-label" htmlFor="temperature-input">Temperature</label>
         <input
-          type="number" min={0} max={2} step={0.1}
+          id="temperature-input"
+          type="number"
+          min={0} max={2} step={0.1}
           value={provider.temperature}
           onChange={e => setTemperature(nodeId, parseFloat(e.target.value))}
-          style={S.input}
+          className="pn-input"
+          aria-label="Temperature"
         />
 
         {hasVision && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Allow Image Uploads</span>
-            <div style={S.toggle(allowImageUploads)} onClick={() => setAllowImageUploads(v => !v)}>
-              <div style={S.knob(allowImageUploads)} />
-            </div>
+          <div className="pn-temp-row">
+            <span className="pn-temp-label">Allow Image Uploads</span>
+            {allowImageUploads ? (
+              <div
+                className="pn-toggle pn-toggle--on"
+                onClick={() => setAllowImageUploads(false)}
+                role="switch"
+                aria-checked="true"
+                aria-label="Allow Image Uploads"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAllowImageUploads(false) } }}
+              >
+                <div className="pn-knob pn-knob--on" />
+              </div>
+            ) : (
+              <div
+                className="pn-toggle pn-toggle--off"
+                onClick={() => setAllowImageUploads(true)}
+                role="switch"
+                aria-checked="false"
+                aria-label="Allow Image Uploads"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAllowImageUploads(true) } }}
+              >
+                <div className="pn-knob pn-knob--off" />
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <div style={{
-        background: `${def.color}18`,
-        borderTop: '1px solid var(--border)',
-        padding: '6px 12px',
-        display: 'flex', alignItems: 'center', gap: 6,
-      }}>
+      <div className="pn-footer">
         {isLive ? (
           <>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 4px #22c55e' }} />
-            <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>Live</span>
+            <div className="pn-footer-status-dot pn-footer-status-dot--live" />
+            <span className="pn-footer-status-live">Live</span>
           </>
         ) : lastSync ? (
           <>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Last synced {hoursAgo}h ago</span>
+            <div className="pn-footer-status-dot pn-footer-status-dot--stale" />
+            <span className="pn-footer-status-muted">Last synced {hoursAgo}h ago</span>
           </>
         ) : (
           <>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b7280' }} />
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Never synced</span>
+            <div className="pn-footer-status-dot pn-footer-status-dot--never" />
+            <span className="pn-footer-status-muted">Never synced</span>
           </>
         )}
-        <div style={{ flex: 1 }} />
+        <div className="pn-footer-spacer" />
         <button
           onClick={async () => {
             try { await fetch(`${API_BASE}/api/models/sync/trigger`, { method: 'POST' }) }
             catch { /* ignore */ }
           }}
-          style={{ fontSize: 9, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+          className="pn-sync-now-btn"
+          aria-label="Sync now"
         >
           Sync Now
         </button>
@@ -266,31 +326,34 @@ function ProviderNodeCollapsed({ nodeId, providerId }: { nodeId: string; provide
   const def = PROVIDER_REGISTRY[providerId]
   const { providers, pendingChanges } = useModelStore()
   const provider = providers[nodeId]
-  const statusColor = !provider ? '#6b7280' : provider.status === 'healthy' ? '#22c55e' : provider.status === 'error' ? '#ef4444' : '#6b7280'
-
   const newCount = provider?.models.filter(m => m.newlyDiscovered).length ?? 0
   const depCount = provider?.models.filter(m => m.deprecated).length ?? 0
   const pendingCount = pendingChanges[providerId]?.length ?? 0
 
   return (
-    <div style={{ width: 200, minHeight: 56, background: 'var(--bg-node)', border: `1px solid ${pendingCount > 0 ? '#f59e0b44' : def.color}44`, borderRadius: 'var(--radius)', cursor: 'pointer', boxShadow: pendingCount > 0 ? '0 0 0 1px #f59e0b33, 0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
-      <div style={{ width: 30, height: 30, borderRadius: 7, background: `${def.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, position: 'relative' }}>
+    <div
+      className="pn-collapsed"
+      data-provider={providerId}
+      data-pending={pendingCount > 0 ? 'true' : undefined}
+      data-status={provider?.status ?? 'unknown'}
+    >
+      <div className="pn-collapsed-icon-wrap">
         {def.icon}
-        <div style={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: statusColor, border: '2px solid var(--bg-node)' }} />
+        <div className="pn-collapsed-status-dot" />
         {pendingCount > 0 && (
-          <div style={{ position: 'absolute', top: -4, left: -4, width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', border: '2px solid var(--bg-node)' }} />
+          <div className="pn-collapsed-pending-dot" />
         )}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{def.name}</div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+      <div className="pn-collapsed-text-wrap">
+        <div className="pn-collapsed-name">{def.name}</div>
+        <div className="pn-collapsed-sub">
           {provider ? `${provider.models.filter(m => m.enabled).length} enabled` : 'loading...'}
         </div>
         {(pendingCount > 0 || newCount > 0 || depCount > 0) && (
-          <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-            {pendingCount > 0 && <span style={{ fontSize: 8, background: '#f59e0b22', color: '#f59e0b', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>{pendingCount} pending</span>}
-            {newCount > 0 && <span style={{ fontSize: 8, background: '#22c55e22', color: '#22c55e', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>{newCount} new</span>}
-            {depCount > 0 && <span style={{ fontSize: 8, background: '#ef444422', color: '#ef4444', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>{depCount} dep.</span>}
+          <div className="pn-collapsed-badges">
+            {pendingCount > 0 && <span className="pn-collapsed-badge pn-collapsed-badge--pending">{pendingCount} pending</span>}
+            {newCount > 0 && <span className="pn-collapsed-badge pn-collapsed-badge--new">{newCount} new</span>}
+            {depCount > 0 && <span className="pn-collapsed-badge pn-collapsed-badge--depr">{depCount} dep.</span>}
           </div>
         )}
       </div>
@@ -303,7 +366,7 @@ function ProviderNode({ id, data }: NodeProps<{ nodeId: string; providerId: Prov
   const isExpanded = expandedIds.has(id)
 
   return (
-    <div style={{ cursor: 'pointer' }}>
+    <div className="pn-root">
       {isExpanded
         ? <ProviderNodeExpanded nodeId={data.nodeId} providerId={data.providerId} />
         : <ProviderNodeCollapsed nodeId={data.nodeId} providerId={data.providerId} />

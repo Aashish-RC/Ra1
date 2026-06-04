@@ -234,9 +234,6 @@ services:
       # when an admin stores them in Infisical (ra1-providers project).
       # See apps/api/src/services/litellm.service.ts → updateModelsForProvider()
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
-      LANGFUSE_HOST: http://langfuse-web:3000
     networks:
       - ra1-network
     healthcheck:
