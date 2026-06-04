@@ -37,11 +37,11 @@ interface ModelOption {
 interface ChatExchange {
   message: string
   response: string
-  model_used: string
+  model: string
   tier: string
   byok: boolean
-  fallback_triggered: boolean
-  fallback_from: string | null
+  fallbackTriggered: boolean
+  fallbackFrom: string | null
   latency: number
   error: string | null
   errorType: string | null
@@ -111,7 +111,7 @@ export default function ModelTestPage() {
     let cancelled = false
     setVaultLoading(true)
     setVaultError(null)
-    sFetch(`${API_BASE}/keys`)
+    sFetch(`${API_BASE}/api/vault/keys`)
       .then(data => { if (!cancelled) setVaultEntries(Array.isArray(data) ? data : []) })
       .catch(err => { if (!cancelled) setVaultError(err.message) })
       .finally(() => { if (!cancelled) setVaultLoading(false) })
@@ -121,7 +121,7 @@ export default function ModelTestPage() {
   const testKey = useCallback(async (providerId: string) => {
     setTestingProvider(providerId)
     try {
-      const data = await sFetch(`${API_BASE}/keys/${providerId}/test`, { method: 'POST' })
+      const data = await sFetch(`${API_BASE}/api/vault/keys/${providerId}/test`, { method: 'POST' })
       setVaultEntries(prev => prev.map(e =>
         e.providerId === providerId
           ? { ...e, isValid: data.valid ?? null }
@@ -143,14 +143,33 @@ export default function ModelTestPage() {
     setModelsLoading(true)
     setModelsError(null)
     try {
-      const snapshots: SnapshotModel[] = await sFetch(`${API_BASE}/models`)
-      // Group by provider and flatten
-      const options: ModelOption[] = snapshots.map(m => ({
-        providerId: m.id,
-        providerName: m.name || m.id,
-        modelId: m.id,
-        label: m.name ? `${m.name} (${m.id})` : m.id,
-      }))
+      // Get connected providers from vault
+      const vaultEntries: VaultEntry[] = await sFetch(`${API_BASE}/api/vault/keys`)
+      const providerIds = vaultEntries.map(e => e.providerId)
+
+      // Fetch snapshot for each provider, flatten results
+      const results = await Promise.allSettled(
+        providerIds.map(pid =>
+          sFetch(`${API_BASE}/api/models/snapshot/${pid}`)
+        )
+      )
+
+      const options: ModelOption[] = []
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const snapshot = result.value as { providerId: string; models: { id: string; name?: string }[] }
+          for (const m of snapshot.models) {
+            options.push({
+              providerId: snapshot.providerId,
+              providerName: snapshot.providerId,
+              modelId: m.id,
+              label: m.name || m.id,
+            })
+          }
+        }
+        // Gracefully skip failed providers (404, etc.)
+      }
+
       setModelOptions(options)
     } catch (err: any) {
       setModelsError(err.message)
@@ -162,10 +181,18 @@ export default function ModelTestPage() {
   // ── Section 2: Auto-select model via scoring ──────────────────────────────
   const loadAutoModel = useCallback(async () => {
     try {
-      const data = await sFetch(`${API_BASE}/scoring/best-model`)
-      if (data?.modelId) setAutoModel(data.modelId)
+      const data = await sFetch(`${API_BASE}/api/scoring/scores`)
+      const scores: ModelScore[] = data?.scores ?? []
+      if (scores.length > 0) {
+        const best = scores.reduce((a, b) =>
+          a.compositeScore > b.compositeScore ? a : b
+        )
+        setAutoModel(best.modelId)
+      } else {
+        setAutoModel(null)
+      }
     } catch {
-      // silent
+      setAutoModel(null)
     }
   }, [])
 
@@ -189,13 +216,14 @@ export default function ModelTestPage() {
     setChatError(null)
     setSending(true)
 
+    const t0 = Date.now()
     const body: Record<string, unknown> = { message: msg }
     if (mode === 'manual' && pinnedModel) {
-      body.modelId = pinnedModel
+      body.model = pinnedModel
     }
 
     try {
-      const data = await sFetch(`${API_BASE}/chat/test`, {
+      const data = await sFetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -203,12 +231,12 @@ export default function ModelTestPage() {
       const exchange: ChatExchange = {
         message: msg,
         response: data.response || '',
-        model_used: data.model_used || 'unknown',
+        model: data.model || 'unknown',
         tier: data.tier || 'unknown',
         byok: !!data.byok,
-        fallback_triggered: !!data.fallback_triggered,
-        fallback_from: data.fallback_from || null,
-        latency: data.latency ?? 0,
+        fallbackTriggered: !!data.fallbackTriggered,
+        fallbackFrom: data.fallbackFrom || null,
+        latency: Date.now() - t0,
         error: null,
         errorType: null,
       }
@@ -217,12 +245,12 @@ export default function ModelTestPage() {
       const exchange: ChatExchange = {
         message: msg,
         response: '',
-        model_used: '—',
+        model: '—',
         tier: '—',
         byok: false,
-        fallback_triggered: false,
-        fallback_from: null,
-        latency: 0,
+        fallbackTriggered: false,
+        fallbackFrom: null,
+        latency: Date.now() - t0,
         error: err.message,
         errorType: err.message.includes('cooldown') ? 'all_cooldown' : 'general',
       }
@@ -241,8 +269,8 @@ export default function ModelTestPage() {
     setScoresLoading(true)
     setScoresError(null)
     try {
-      const data = await sFetch(`${API_BASE}/scoring`)
-      setScores(Array.isArray(data) ? data : [])
+      const data = await sFetch(`${API_BASE}/api/scoring/scores`)
+      setScores(data?.scores ?? [])
     } catch (err: any) {
       setScoresError(err.message)
     } finally {
@@ -252,7 +280,7 @@ export default function ModelTestPage() {
 
   const loadCooldowns = useCallback(async () => {
     try {
-      const data = await sFetch(`${API_BASE}/scoring/cooldowns`)
+      const data = await sFetch(`${API_BASE}/api/scoring/cooldowns`)
       setCooldowns(data || {})
     } catch {
       // silent
@@ -269,7 +297,7 @@ export default function ModelTestPage() {
   const triggerSync = useCallback(async () => {
     setSyncing(true)
     try {
-      await sFetch(`${API_BASE}/scoring/sync-models`, { method: 'POST' })
+      await sFetch(`${API_BASE}/api/models/sync/trigger`, { method: 'POST' })
       // Refresh after sync
       await loadScores()
     } catch (err: any) {
@@ -482,7 +510,7 @@ export default function ModelTestPage() {
                         {/* Metadata bar */}
                         <div className="mtp-meta-row">
                           <span className="mtp-meta-tag mtp-meta-tag--muted">
-                            Model: {ex.model_used}
+                            Model: {ex.model}
                           </span>
                           <span className="mtp-meta-tag mtp-meta-tag--muted">
                             Tier: {ex.tier}
@@ -490,12 +518,12 @@ export default function ModelTestPage() {
                           <span className={`mtp-meta-tag ${ex.byok ? 'mtp-meta-tag--byok-yes' : 'mtp-meta-tag--byok-no'}`}>
                             BYOK: {ex.byok ? 'Yes' : 'No'}
                           </span>
-                          <span className={`mtp-meta-tag ${ex.fallback_triggered ? 'mtp-meta-tag--fallback-yes' : 'mtp-meta-tag--fallback-no'}`}>
-                            Fallback: {ex.fallback_triggered ? 'Yes' : 'No'}
+                          <span className={`mtp-meta-tag ${ex.fallbackTriggered ? 'mtp-meta-tag--fallback-yes' : 'mtp-meta-tag--fallback-no'}`}>
+                            Fallback: {ex.fallbackTriggered ? 'Yes' : 'No'}
                           </span>
-                          {ex.fallback_triggered && ex.fallback_from && (
+                          {ex.fallbackTriggered && ex.fallbackFrom && (
                             <span className="mtp-meta-tag mtp-meta-tag--fallback-from">
-                              From: {ex.fallback_from}
+                              From: {ex.fallbackFrom}
                             </span>
                           )}
                           <span className="mtp-meta-tag mtp-meta-tag--muted">
