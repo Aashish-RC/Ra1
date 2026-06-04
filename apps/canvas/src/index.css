@@ -104,6 +104,33 @@ body {
 }
 .ra1-label:first-child { margin-top: 0; }
 
+/* Vault flash animation */
+.vault-node--flash {
+  animation: vault-flash 0.4s ease-out;
+}
+
+@keyframes vault-flash {
+  0%   { box-shadow: 0 0 0 2px #f8961e, 0 0 16px #f8961e88; }
+  100% { box-shadow: none; }
+}
+
+/* Animated dash scrolling for vault-provider edges */
+.react-flow__edge-path.animated-dash {
+  animation: dash-scroll 1s linear infinite;
+}
+
+@keyframes dash-scroll {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+/* Key ingress particle animation */
+@keyframes key-particle-travel {
+  0%   { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-60px); opacity: 0; }
+}
+
 /* Toggle */
 .ra1-toggle {
   display: flex;

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { saveKeyToVault, listVaultKeys, resolveVaultKey, revokeVaultKey, updateKeyStatus } from '../services/vault.service'
+import { useCanvasStore } from './canvasStore'
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -67,6 +68,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   revokeKey: async (providerId) => {
+    // Notify canvas store to remove vault-provider edge
+    useCanvasStore.getState().onKeyRevoked(providerId)
+
     try {
       await revokeVaultKey(providerId)
       set({ isOnline: true })

@@ -7,6 +7,7 @@ import { useVaultStore } from './store/vault.store'
 import ModelNode from './nodes/ModelNode'
 import VaultNode from './nodes/VaultNode'
 import ProviderNode from './nodes/ProviderNode'
+import BiDirectionalEdge from './edges/BiDirectionalEdge'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import ModelsPage from './pages/ModelsPage'
@@ -21,6 +22,10 @@ const nodeTypes = {
   'model-node': ModelNode,
   'vault-node': VaultNode,
   'provider-node': ProviderNode,
+}
+
+const edgeTypes = {
+  bidirectional: BiDirectionalEdge,
 }
 
 const defaultEdgeOptions = {
@@ -75,6 +80,7 @@ function Canvas() {
       onDragOver={onDragOver}
       onDrop={onDrop}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       defaultEdgeOptions={defaultEdgeOptions}
       fitView={false}
       panOnDrag

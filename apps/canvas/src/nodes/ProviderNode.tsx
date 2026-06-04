@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from 'react'
-import { NodeProps } from 'reactflow'
+import { NodeProps, Handle, Position } from 'reactflow'
 import { useModelStore } from '../store/model.store'
 import { useVaultStore } from '../store/vault.store'
 import { useCanvasStore } from '../store/canvasStore'
@@ -337,6 +337,7 @@ function ProviderNodeCollapsed({ nodeId, providerId }: { nodeId: string; provide
       data-pending={pendingCount > 0 ? 'true' : undefined}
       data-status={provider?.status ?? 'unknown'}
     >
+      <Handle type="source" position={Position.Right} id="key-out" style={{ top: '50%' }} />
       <div className="pn-collapsed-icon-wrap">
         {def.icon}
         <div className="pn-collapsed-status-dot" />

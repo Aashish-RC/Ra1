@@ -8,6 +8,10 @@ interface CanvasStore {
   nodes: Node[]
   edges: Edge[]
   expandedIds: Set<string>
+  vaultProviderEdges: Record<string, Edge>    // keyed by providerId
+  vaultModelEdge: Edge | null                  // the single vault↔model edge
+  animatingKeyIngress: string | null           // providerId currently animating a key drop
+
   init: () => void
   toggleExpand: (id: string) => void
   onNodesChange: (changes: NodeChange[]) => void
@@ -15,31 +19,29 @@ interface CanvasStore {
   dropProvider: (providerId: ProviderId, position: XYPosition) => void
   removeProviderNode: (nodeId: string) => void
   onKeyStored: (providerId: string) => void
+  onKeyRevoked: (providerId: string) => void
+  ensureVaultModelEdge: () => void
+  setKeyDropAnimationComplete: () => void
 }
 
 function systemNode(id: string, type: string, x: number, y: number): Node {
   return { id, type, position: { x, y }, data: {}, draggable: false, selectable: true, deletable: false }
 }
 
-function edgeStyle(color: string, animated = false): Partial<Edge> {
-  return {
-    type: 'smoothstep',
-    animated,
-    style: { stroke: color, strokeWidth: 1.5, opacity: 0.8 },
-  }
-}
-
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   nodes: [],
   edges: [],
   expandedIds: new Set(),
+  vaultProviderEdges: {},
+  vaultModelEdge: null,
+  animatingKeyIngress: null,
 
   init: () => {
     const nodes: Node[] = [
       systemNode('model', 'model-node', 400, 200),
       systemNode('vault', 'vault-node', 120, 200),
     ]
-    set({ nodes, edges: [] })  // no edges on init — edges appear as providers are added
+    set({ nodes, edges: [], vaultProviderEdges: {}, vaultModelEdge: null })
   },
 
   toggleExpand: (id) => {
@@ -82,58 +84,128 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       deletable: true,
     }
 
-    const providerToVault: Edge = {
-      id: `e-${nodeId}-vault`,
-      source: nodeId,
-      target: 'vault',
-      ...edgeStyle('#f8961e', false),   // orange, NOT animated until key saved
-      style: { stroke: '#f8961e', strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.6 },
-    }
-
-    const vaultToModel: Edge = {
-      id: 'e-vault-model',
-      source: 'vault',
-      target: 'model',
-      ...edgeStyle('#f8961e', false),   // starts non-animated
-    }
-
-    // Only add vault-model edge if it doesn't already exist
-    const edges = get().edges
-    const vaultModelExists = edges.some(e => e.id === 'e-vault-model')
-
     const next = new Set(get().expandedIds)
     next.add(nodeId)
 
     set(s => ({
       nodes: [...s.nodes, newNode],
-      edges: [
-        ...s.edges,
-        providerToVault,
-        ...(vaultModelExists ? [] : [vaultToModel]),
-      ],
+      edges: [...s.edges],
       expandedIds: next,
+    }))
+
+    // Ensure vault↔model edge exists if not already
+    get().ensureVaultModelEdge()
+  },
+
+  ensureVaultModelEdge: () => {
+    const { nodes, vaultModelEdge } = get()
+    const hasVault = nodes.some(n => n.id === 'vault')
+    const hasModel = nodes.some(n => n.id === 'model')
+
+    if (!hasVault || !hasModel) {
+      // Remove the bidirectional edge if either node is missing
+      if (vaultModelEdge) {
+        set(s => ({
+          edges: s.edges.filter(e => e.id !== 'vault-model-permanent'),
+          vaultModelEdge: null,
+        }))
+      }
+      return
+    }
+
+    // Edge already exists
+    if (vaultModelEdge) return
+
+    const newEdge: Edge = {
+      id: 'vault-model-permanent',
+      source: 'vault',
+      target: 'model',
+      sourceHandle: 'model-vault-right',
+      targetHandle: 'vault-link-left',
+      type: 'bidirectional',
+      style: { stroke: '#6c63ff55', strokeWidth: 1.5 },
+    }
+
+    set(s => ({
+      edges: [...s.edges.filter(e => e.id !== 'vault-model-permanent'), newEdge],
+      vaultModelEdge: newEdge,
     }))
   },
 
   onKeyStored: (providerId: string) => {
+    const { nodes, vaultProviderEdges } = get()
+
+    // Find the provider node for this providerId
+    const providerNode = nodes.find(n => {
+      const data = n.data as { providerId?: string } | undefined
+      return data?.providerId === providerId && n.type === 'provider-node'
+    })
+    if (!providerNode) return
+
+    const edgeId = `vault-provider-${providerId}`
+
+    // Create or update the vault-provider edge
+    const newEdge: Edge = {
+      id: edgeId,
+      source: providerNode.id,
+      target: 'vault',
+      sourceHandle: 'key-out',
+      targetHandle: 'vault-in',
+      type: 'smoothstep',
+      animated: true,
+      style: {
+        stroke: '#f8961e',
+        strokeWidth: 1.5,
+        strokeDasharray: '5 3',
+        opacity: 1,
+      },
+      className: 'animated-dash',
+    }
+
+    const updatedVaultProviderEdges = {
+      ...vaultProviderEdges,
+      [providerId]: newEdge,
+    }
+
     set(s => ({
-      edges: s.edges.map(e => {
-        // Animate the provider→vault edge for this provider
-        if (e.source.includes(providerId) && e.target === 'vault') {
-          return { ...e, animated: true, style: { stroke: '#f8961e', strokeWidth: 2, opacity: 1 } }
-        }
-        // Animate vault→model once any key is stored
-        if (e.id === 'e-vault-model') {
-          return { ...e, animated: true, style: { stroke: '#f8961e', strokeWidth: 2, opacity: 1 } }
-        }
-        return e
-      })
+      edges: [...s.edges.filter(e => e.id !== edgeId), newEdge],
+      vaultProviderEdges: updatedVaultProviderEdges,
+      animatingKeyIngress: providerId,
     }))
+
+    // Ensure vault↔model edge exists
+    get().ensureVaultModelEdge()
+  },
+
+  onKeyRevoked: (providerId: string) => {
+    const edgeId = `vault-provider-${providerId}`
+    const { vaultProviderEdges } = get()
+
+    const updated = { ...vaultProviderEdges }
+    delete updated[providerId]
+
+    set(s => ({
+      edges: s.edges.filter(e => e.id !== edgeId),
+      vaultProviderEdges: updated,
+    }))
+  },
+
+  setKeyDropAnimationComplete: () => {
+    set({ animatingKeyIngress: null })
   },
 
   removeProviderNode: (nodeId) => {
     useModelStore.getState().removeProvider(nodeId)
-    useVaultStore.getState().revokeKey(nodeId.replace('provider-', ''))
+
+    // Find the providerId to revoke its key
+    const node = get().nodes.find(n => n.id === nodeId)
+    const providerId = node?.data?.providerId as string | undefined
+    if (providerId) {
+      useVaultStore.getState().revokeKey(providerId)
+      // Also clean up the vault-provider edge
+      get().onKeyRevoked(providerId)
+    }
+
     set(s => ({
       nodes: s.nodes.filter(n => n.id !== nodeId),
       edges: s.edges.filter(e => e.source !== nodeId && e.target !== nodeId),

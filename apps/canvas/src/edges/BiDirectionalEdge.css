@@ -1,0 +1,28 @@
+/* ===== BiDirectionalEdge Styles ===== */
+
+.bi-edge-label {
+  position: absolute;
+  background: rgba(15, 17, 23, 0.75);
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid #6c63ff33;
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+  pointer-events: auto;
+  white-space: nowrap;
+  transform: translate(-50%, -50%) translate(var(--bi-label-x, 0), var(--bi-label-y, 0));
+}
+
+.bi-edge-label-key {
+  color: #f8961e99;
+}
+
+.bi-edge-label-access {
+  color: #6c63ff99;
+}
+
+.bi-edge-path {
+  stroke: #6c63ff55;
+  stroke-width: 1.5;
+}
