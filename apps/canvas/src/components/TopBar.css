@@ -1,0 +1,98 @@
+.topbar {
+  height: 52px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbar-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-logo-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6c63ff, #f72585);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: white;
+}
+
+.topbar-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.topbar-separator {
+  color: var(--border-bright);
+  font-size: 14px;
+}
+
+.topbar-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.topbar-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 16px;
+  background: var(--bg-base);
+  border-radius: 7px;
+  padding: 3px;
+}
+
+.topbar-tab {
+  padding: 4px 14px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  text-transform: capitalize;
+  font-family: var(--font);
+}
+
+.topbar-tab:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.topbar-tab--active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.topbar-reset-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.topbar-reset-btn:hover {
+  background: var(--bg-base);
+}

@@ -1,0 +1,17 @@
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-canvas-wrapper {
+  flex: 1;
+  position: relative;
+}

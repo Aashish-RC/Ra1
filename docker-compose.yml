@@ -98,7 +98,7 @@ services:
       retries: 5
 
   minio:
-    image: cgr.dev/chainguard/minio
+    image: quay.io/minio/minio:latest
     container_name: ra1-minio
     ports:
       - "9090:9000"
@@ -113,11 +113,11 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:9000/minio/health/live"]
-      interval: 1s
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 1s
+      retries: 10
+      start_period: 10s
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.6-alpine
@@ -131,7 +131,7 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:8123/ping"]
+      test: ["CMD", "wget", "--spider", "http://127.0.0.1:8123/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -145,7 +145,7 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:6333"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 2>/dev/null' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -159,7 +159,7 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:11434/api/ps"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/11434 2>/dev/null' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -182,7 +182,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U infisical"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 20
+      start_period: 30s
 
   infisical:
     image: infisical/infisical:latest
@@ -208,7 +209,7 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:8080"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -239,7 +240,7 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:4000"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:4000 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -373,7 +374,7 @@ services:
     networks:
       - ra1-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      test: ["CMD-SHELL", "wget -q --no-verbose --tries=1 --spider http://127.0.0.1:3001/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

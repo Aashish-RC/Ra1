@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import './App.css'
 import ReactFlow, { Background, Controls, BackgroundVariant, ReactFlowProvider, useReactFlow, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useCanvasStore } from './store/canvasStore'
@@ -9,6 +10,7 @@ import ProviderNode from './nodes/ProviderNode'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import ModelsPage from './pages/ModelsPage'
+import ModelTestPage from './pages/ModelTestPage'
 import { ProviderId } from './data/providers'
 import { useChangelogSync } from './hooks/useChangelogSync'
 
@@ -88,21 +90,23 @@ function Canvas() {
 }
 
 export default function App() {
-  const [page, setPage] = useState<'canvas' | 'models'>('canvas')
+  const [page, setPage] = useState<'canvas' | 'models' | 'model-test'>('canvas')
 
   return (
     <ReactFlowProvider>
       <ChangelogInit />
-      <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
+      <div className="app-layout">
         <TopBar page={page} onPageChange={setPage} />
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div className="app-body">
           <Sidebar />
           {page === 'canvas' ? (
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div className="app-canvas-wrapper">
               <Canvas />
             </div>
-          ) : (
+          ) : page === 'models' ? (
             <ModelsPage />
+          ) : (
+            <ModelTestPage />
           )}
         </div>
       </div>
