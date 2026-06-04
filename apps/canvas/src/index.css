@@ -114,11 +114,6 @@ body {
   100% { box-shadow: none; }
 }
 
-/* Animated dash scrolling for vault-provider edges */
-.react-flow__edge-path.animated-dash {
-  animation: dash-scroll 1s linear infinite;
-}
-
 @keyframes dash-scroll {
   to {
     stroke-dashoffset: -16;
@@ -126,9 +121,18 @@ body {
 }
 
 /* Key ingress particle animation */
+.key-particle::after {
+  content: '🔑';
+  font-size: 12px;
+}
+
+.key-particle {
+  animation: key-particle-travel 600ms ease-in-out forwards;
+}
+
 @keyframes key-particle-travel {
-  0%   { transform: translateX(0); opacity: 1; }
-  100% { transform: translateX(-60px); opacity: 0; }
+  0%   { transform: translate(0, 0); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
 }
 
 /* Toggle */

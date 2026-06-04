@@ -42,6 +42,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       systemNode('vault', 'vault-node', 120, 200),
     ]
     set({ nodes, edges: [], vaultProviderEdges: {}, vaultModelEdge: null })
+    get().ensureVaultModelEdge()
   },
 
   toggleExpand: (id) => {
@@ -158,8 +159,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         strokeWidth: 1.5,
         strokeDasharray: '5 3',
         opacity: 1,
+        animation: 'dash-scroll 1s linear infinite',
       },
-      className: 'animated-dash',
     }
 
     const updatedVaultProviderEdges = {

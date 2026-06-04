@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import './App.css'
-import ReactFlow, { Background, Controls, BackgroundVariant, ReactFlowProvider, useReactFlow, ReactFlowInstance } from 'reactflow'
+import ReactFlow, { Background, Controls, BackgroundVariant, EdgeLabelRenderer, ReactFlowProvider, useReactFlow, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useCanvasStore } from './store/canvasStore'
 import { useVaultStore } from './store/vault.store'
@@ -31,6 +31,34 @@ const edgeTypes = {
 const defaultEdgeOptions = {
   type: 'smoothstep',
   style: { strokeWidth: 1.5, opacity: 0.7 },
+}
+
+function KeyParticle() {
+  const animating = useCanvasStore(s => s.animatingKeyIngress)
+  const nodes = useCanvasStore(s => s.nodes)
+  if (!animating) return null
+
+  const providerNode = nodes.find(n => (n.data as any)?.providerId === animating)
+  const vaultNode = nodes.find(n => n.id === 'vault')
+  if (!providerNode || !vaultNode) return null
+
+  const dx = vaultNode.position.x - providerNode.position.x
+  const dy = vaultNode.position.y - providerNode.position.y
+
+  return (
+    <EdgeLabelRenderer>
+      <div
+        className="key-particle nodrag nopan"
+        style={{
+          position: 'absolute',
+          left: providerNode.position.x + 100,
+          top: providerNode.position.y + 28,
+          '--dx': `${dx}px`,
+          '--dy': `${dy}px`,
+        } as React.CSSProperties}
+      />
+    </EdgeLabelRenderer>
+  )
 }
 
 function Canvas() {
@@ -91,6 +119,7 @@ function Canvas() {
     >
       <Background variant={BackgroundVariant.Dots} color="#1e1e2e" gap={24} size={1.5} />
       <Controls position="bottom-left" />
+      <KeyParticle />
     </ReactFlow>
   )
 }

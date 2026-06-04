@@ -11,7 +11,7 @@
   text-align: center;
   pointer-events: auto;
   white-space: nowrap;
-  transform: translate(-50%, -50%) translate(var(--bi-label-x, 0), var(--bi-label-y, 0));
+  transform: translate(-50%, -50%);
 }
 
 .bi-edge-label-key {

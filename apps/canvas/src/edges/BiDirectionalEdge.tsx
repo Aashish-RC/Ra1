@@ -1,4 +1,3 @@
-import { useRef, useEffect } from 'react'
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getBezierPath } from 'reactflow'
 import './BiDirectionalEdge.css'
 
@@ -19,16 +18,6 @@ export default function BiDirectionalEdge({
     targetY,
     targetPosition,
   })
-
-  const labelId = `bi-label-${id}`
-  const labelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = labelRef.current
-    if (!el) return
-    el.style.setProperty('--bi-label-x', `${(sourceX + targetX) / 2}px`)
-    el.style.setProperty('--bi-label-y', `${(sourceY + targetY) / 2}px`)
-  }, [sourceX, sourceY, targetX, targetY])
 
   return (
     <>
@@ -52,9 +41,12 @@ export default function BiDirectionalEdge({
       />
       <EdgeLabelRenderer>
         <div
-          id={labelId}
-          ref={labelRef}
           className="bi-edge-label nodrag nopan"
+          style={{
+            transform: 'translate(-50%, -50%)',
+            left: (sourceX + targetX) / 2,
+            top: (sourceY + targetY) / 2,
+          }}
         >
           <div className="bi-edge-label-key">🔑 key storage</div>
           <div className="bi-edge-label-access">⚡ access on request</div>
