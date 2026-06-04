@@ -2,7 +2,7 @@ import { InfisicalClient } from "@infisical/sdk";
 import { setSecrets, systemSecretsSchema } from "./secrets";
 import { logger } from "../lib/logger";
 
-export let infisicalClient: InfisicalClient;
+export let infisicalClient: InfisicalClient | null = null;
 
 export async function bootstrap(): Promise<void> {
   const infisicalUrl = process.env.INFISICAL_URL || "http://infisical:8080";
@@ -10,11 +10,13 @@ export async function bootstrap(): Promise<void> {
   const systemProjectId = process.env.INFISICAL_SYSTEM_PROJECT_ID;
   const environment = process.env.INFISICAL_ENVIRONMENT || "dev";
 
-  if (!serviceToken) {
-    throw new Error("INFISICAL_SERVICE_TOKEN is required");
-  }
-  if (!systemProjectId) {
-    throw new Error("INFISICAL_SYSTEM_PROJECT_ID is required");
+  if (!serviceToken || !systemProjectId) {
+    // No Infisical configured — load secrets directly from environment variables
+    logger.warn("INFISICAL_SERVICE_TOKEN not set — loading secrets from environment variables directly");
+    const parsed = systemSecretsSchema.partial().parse(process.env);
+    setSecrets(parsed);
+    logger.info(`Bootstrap complete: secrets loaded from environment (${environment} environment)`);
+    return;
   }
 
   infisicalClient = new InfisicalClient({

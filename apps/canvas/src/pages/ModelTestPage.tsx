@@ -145,8 +145,8 @@ export default function ModelTestPage() {
     setModelsError(null)
     try {
       // Get connected providers from vault
-      const vaultEntries: VaultEntry[] = await sFetch(`${API_BASE}/api/vault/keys`)
-      const providerIds = vaultEntries.map(e => e.providerId)
+      const vaultKeys: VaultEntry[] = await sFetch(`${API_BASE}/api/vault/keys`)
+      const providerIds = vaultKeys.map(e => e.providerId)
 
       // Fetch snapshot for each provider, flatten results
       const results = await Promise.allSettled(
@@ -158,7 +158,7 @@ export default function ModelTestPage() {
       const options: ModelOption[] = []
       for (const result of results) {
         if (result.status === 'fulfilled') {
-          const snapshot = result.value as { providerId: string; models: { id: string; name?: string }[] }
+          const snapshot = result.value as { providerId: string; models: SnapshotModel[] }
           for (const m of snapshot.models) {
             options.push({
               providerId: snapshot.providerId,
@@ -208,6 +208,36 @@ export default function ModelTestPage() {
     if (mode !== 'manual') return
     loadModelOptions()
   }, [mode, loadModelOptions])
+
+  // ── Section 4: Scores (moved before Section 3 Chat) ───────────────────────
+  const loadScores = useCallback(async () => {
+    setScoresLoading(true)
+    setScoresError(null)
+    try {
+      const data = await sFetch(`${API_BASE}/api/scoring/scores`)
+      setScores(data?.scores ?? [])
+    } catch (err: any) {
+      setScoresError(err.message)
+    } finally {
+      setScoresLoading(false)
+    }
+  }, [])
+
+  const loadCooldowns = useCallback(async () => {
+    try {
+      const data = await sFetch(`${API_BASE}/api/scoring/cooldowns`)
+      setCooldowns(data || {})
+    } catch {
+      // silent
+    }
+  }, [])
+
+  useEffect(() => {
+    loadScores()
+    loadCooldowns()
+    const interval = setInterval(loadCooldowns, 5_000)
+    return () => clearInterval(interval)
+  }, [loadScores, loadCooldowns])
 
   // ── Section 3: Chat ────────────────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
@@ -262,41 +292,11 @@ export default function ModelTestPage() {
       loadCooldowns()
       loadScores()
     }
-  }, [chatInput, mode, pinnedModel, loadCooldowns, loadScores, setLastUsedModel])
+  }, [chatInput, mode, pinnedModel, loadCooldowns, loadScores])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatHistory])
-
-  // ── Section 4: Scores ──────────────────────────────────────────────────────
-  const loadScores = useCallback(async () => {
-    setScoresLoading(true)
-    setScoresError(null)
-    try {
-      const data = await sFetch(`${API_BASE}/api/scoring/scores`)
-      setScores(data?.scores ?? [])
-    } catch (err: any) {
-      setScoresError(err.message)
-    } finally {
-      setScoresLoading(false)
-    }
-  }, [])
-
-  const loadCooldowns = useCallback(async () => {
-    try {
-      const data = await sFetch(`${API_BASE}/api/scoring/cooldowns`)
-      setCooldowns(data || {})
-    } catch {
-      // silent
-    }
-  }, [])
-
-  useEffect(() => {
-    loadScores()
-    loadCooldowns()
-    const interval = setInterval(loadCooldowns, 5_000)
-    return () => clearInterval(interval)
-  }, [loadScores, loadCooldowns])
 
   const triggerSync = useCallback(async () => {
     setSyncing(true)

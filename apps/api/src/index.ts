@@ -47,14 +47,26 @@ async function main(): Promise<void> {
     await connectValkey();
     logger.info("Connected to Valkey");
 
-    await connectClickhouse();
-    logger.info("Connected to ClickHouse");
+    try {
+      await connectClickhouse();
+      logger.info("Connected to ClickHouse");
+    } catch (err) {
+      logger.warn({ err }, "ClickHouse unavailable — continuing without it");
+    }
 
-    await connectQdrant();
-    logger.info("Connected to Qdrant");
+    try {
+      await connectQdrant();
+      logger.info("Connected to Qdrant");
+    } catch (err) {
+      logger.warn({ err }, "Qdrant unavailable — continuing without it");
+    }
 
-    await connectOllama();
-    logger.info("Connected to Ollama");
+    try {
+      await connectOllama();
+      logger.info("Connected to Ollama");
+    } catch (err) {
+      logger.warn({ err }, "Ollama unavailable — continuing without it");
+    }
 
     const app = Fastify({
       logger: false,

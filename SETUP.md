@@ -24,98 +24,75 @@ git clone https://github.com/Aashish-RC/Ra1.git
 cd Ra1
 ```
 
-### 2. Install JavaScript Dependencies
+### 2. Configure Environment
 
 ```bash
-# Install all workspace packages
-pnpm install
-
-# Install canvas frontend dependencies
-cd canvas
-pnpm install
-cd ..
+cp .env.example .env
 ```
 
-### 3. Configure Environment Files
+### 3. Fill in the 5 Quick Start Values
+
+Edit `.env` and generate the required secrets:
 
 ```bash
-# Backend configuration
-cp ra1/.env.example ra1/.env
-
-# Edit ra1/.env with your values (see "Configuration" section below)
-# At minimum, set:
-#   JWT_SECRET=<random-string>
-#   OPENAI_API_KEY=sk-... (if using OpenAI)
+# Generate each value with openssl:
+openssl rand -hex 32   # for POSTGRES_PASSWORD, JWT_SECRET, INFISICAL_AUTH_SECRET
+openssl rand -hex 16   # for LITELLM_MASTER_KEY (prefix with sk-ra1-), INFISICAL_ENCRYPTION_KEY
 ```
 
+Set these values in `.env`:
+- `POSTGRES_PASSWORD` — any password, e.g. `ra1local`
+- `LITELLM_MASTER_KEY` — format: `sk-ra1-` followed by hex, e.g. `sk-ra1-a1b2c3d4e5f6a7b8`
+- `JWT_SECRET` — 64 hex chars from `openssl rand -hex 32`
+- `INFISICAL_ENCRYPTION_KEY` — 32 hex chars from `openssl rand -hex 16`
+- `INFISICAL_AUTH_SECRET` — 64 hex chars from `openssl rand -hex 32`
+
+### 4. Start Everything with Docker
+
 ```bash
-# Frontend configuration (optional — defaults work out of the box)
-cp canvas/.env.example canvas/.env
-```
+# Minimal stack (postgres + valkey + api + canvas + litellm):
+docker compose up -d canvas api postgres valkey litellm
 
-### 4. Start Everything with Docker (Universal)
-
-The project now has a **single root-level `docker-compose.yml`** that orchestrates *all* services — infrastructure, API, and Canvas frontend — from one command.
-
-**Option A: Full stack (everything — 12+ services)**
-```bash
-# From the project root (not ra1/)
+# Or full stack (all services including optional ones):
 docker compose up -d
-```
-
-**Option B: Minimal stack (development — postgres + valkey only)**
-```bash
-docker compose up -d postgres valkey
-```
-
-**Option C: Canvas + API + full infrastructure**
-```bash
-docker compose up -d canvas api
 ```
 
 > ⏳ First run will download Docker images (~2-4GB). Subsequent runs are instant.
 > 📌 The Canvas frontend is served at **http://localhost:5173** with hot-reload.
 
-### 5. (Alternative) Run Natively Without Full Docker
+### 5. Open in Browser
 
-If you prefer running the API and Canvas on your host machine:
+Navigate to **[http://localhost:5173](http://localhost:5173)** and click the **"Model Test"** tab.
 
-```bash
-# 1. Start only the infrastructure in Docker
-docker compose up -d postgres valkey
+### 6. Add a Provider Key and Test
 
-# 2. Start the API server (separate terminal)
-cd ra1 && pnpm --filter @ra1/api dev
-
-# 3. Start the Canvas frontend (separate terminal)
-cd canvas && pnpm dev
-```
-
-### 6. Open in Browser
-
-Navigate to **[http://localhost:5173](http://localhost:5173)**
+1. In the Vault section, click **"Add Key"** (or use the Canvas → Vault node).
+2. Enter your provider API key (e.g., OpenAI, Anthropic).
+3. Click **"Test"** to verify connectivity.
+4. Send a chat message to test the full flow.
 
 ---
 
 ## Docker Services Reference
 
-When you run `docker compose up -d` in `ra1/`, these services start:
+When you run `docker compose up -d`, these services start:
 
 | Service | Port | Description | Required? |
 |---------|------|-------------|-----------|
 | PostgreSQL | 5432 | Primary database | ✅ Required |
 | Valkey | (internal) | Cache layer | ✅ Required |
+| API Server | 3001 | Core backend | ✅ Required |
+| Canvas | 5173 | Frontend UI | ✅ Required |
+| LiteLLM | 4000 | Model proxy/endpoint | ✅ For model routing |
+| Infisical | 8080 | Secret vault | 🔶 Optional (skip for quick start) |
 | ClickHouse | 8123, 9000 | Analytics database | 🔶 Optional |
 | Qdrant | 6333 | Vector database | 🔶 Optional |
 | MinIO | 9090, 9091 | S3-compatible storage | 🔶 Optional |
 | Ollama | 11434 | Local LLM inference | 🔶 Optional |
-| LiteLLM | 4000 | Model proxy/endpoint | 🔶 Optional |
 | Langfuse | 3002 | Observability & tracing | 🔶 Optional |
 | LibreChat | 3080 | Chat UI | 🔶 Optional |
-| Infisical | 8080 | Secret vault | 🔶 Optional |
 | Redis | 6379 | Langfuse queue | 🔶 Optional |
 | MongoDB | 27017 | LibreChat database | 🔶 Optional |
-| API Server | 3001 | Core backend | ✅ Required (run separately) |
 
 > For minimal development, only **PostgreSQL** and **Valkey** are strictly needed.
 
@@ -123,21 +100,15 @@ When you run `docker compose up -d` in `ra1/`, these services start:
 
 ## Configuration
 
-### Backend (`ra1/.env`)
+### Environment Variables (`.env`)
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
+| `POSTGRES_PASSWORD` | ✅ Yes | PostgreSQL password | (must set) |
 | `JWT_SECRET` | ✅ Yes | JWT signing secret | (must set) |
-| `DATABASE_URL` | ✅ Yes | PostgreSQL connection string | Auto-generated from POSTGRES_* vars |
-| `LITELLM_MASTER_KEY` | 🔶 If using LiteLLM | LiteLLM admin key | `sk-ra1-litellm-master` |
-| `OPENAI_API_KEY` | 🔶 If using OpenAI | OpenAI API key | — |
-| `ANTHROPIC_API_KEY` | 🔶 If using Anthropic | Anthropic API key | — |
-| `GEMINI_API_KEY` | 🔶 If using Google | Google Gemini API key | — |
-
-### Frontend (`canvas/.env`)
-
-| Variable | Required | Description | Default |
-|----------|----------|-------------|---------|
+| `LITELLM_MASTER_KEY` | ✅ For LiteLLM | LiteLLM admin key | `sk-ra1-litellm-master` |
+| `INFISICAL_ENCRYPTION_KEY` | 🔶 For Infisical | Infisical encryption key | — |
+| `INFISICAL_AUTH_SECRET` | 🔶 For Infisical | Infisical auth secret | — |
 | `VITE_API_URL` | 🔶 Only if backend not on :3001 | Backend API URL | `http://localhost:3001` |
 
 ---
@@ -192,7 +163,7 @@ The **Credential Vault** node shows all stored API keys:
 ### Canvas (Frontend)
 
 ```bash
-cd canvas
+cd apps/canvas
 pnpm dev          # Start dev server on :5173
 pnpm build        # Production build to dist/
 pnpm preview      # Preview production build
@@ -202,7 +173,7 @@ pnpm lint         # Run linter (if configured)
 ### API (Backend)
 
 ```bash
-cd ra1
+# From repo root:
 pnpm --filter @ra1/api dev       # Dev mode with hot reload
 pnpm --filter @ra1/api build     # TypeScript compilation
 pnpm --filter @ra1/api start     # Run compiled code
@@ -212,12 +183,10 @@ pnpm --filter @ra1/api start     # Run compiled code
 
 ```bash
 # Build canvas image
-cd canvas
-docker build -t ra1-canvas .
+docker build -f apps/canvas/Dockerfile -t ra1-canvas .
 
 # Build API image
-cd ra1/api
-docker build -t ra1-api .
+docker build -f apps/api/Dockerfile -t ra1-api .
 ```
 
 ---
@@ -229,7 +198,7 @@ docker build -t ra1-api .
 Dependencies not installed:
 
 ```bash
-cd canvas
+cd apps/canvas
 pnpm install
 ```
 
@@ -238,7 +207,6 @@ pnpm install
 Make sure Docker services are running:
 
 ```bash
-cd ra1
 docker compose ps
 # postgres should be "Up" and "healthy"
 ```
@@ -247,14 +215,13 @@ docker compose ps
 
 1. Check that the API server is running on port 3001.
 2. Check browser console for CORS errors.
-3. If using a custom API URL, update `VITE_API_URL` in `canvas/.env`.
+3. If using a custom API URL, update `VITE_API_URL` in `.env`.
 
 ### Docker containers keep restarting
 
 Check logs:
 
 ```bash
-cd ra1
 docker compose logs <service-name>
 # e.g., docker compose logs postgres
 ```
@@ -262,8 +229,8 @@ docker compose logs <service-name>
 ### Port already in use
 
 If port 5173 or 3001 is taken, change them:
-- Canvas: edit `canvas/vite.config.ts` → change `server.port`.
-- API: set `API_PORT` in `ra1/.env`.
+- Canvas: edit `apps/canvas/vite.config.ts` → change `server.port`.
+- API: set `API_PORT` in `.env`.
 
 ---
 
@@ -271,36 +238,40 @@ If port 5173 or 3001 is taken, change them:
 
 ```
 Ra1/
-├── canvas/                  # React + Vite frontend
-│   ├── src/
-│   │   ├── components/      # Sidebar, TopBar
-│   │   ├── data/            # Provider registry, model definitions
-│   │   ├── hooks/           # Changelog sync
-│   │   ├── nodes/           # ModelNode, ProviderNode, VaultNode
-│   │   ├── pages/           # ModelsPage
-│   │   ├── services/        # model-discovery, vault.service
-│   │   ├── store/           # Zustand stores (canvas, model, vault)
-│   │   └── utils/           # Layout helpers
-│   ├── public/              # Static assets
-│   ├── Dockerfile
-│   └── package.json
-├── ra1/                     # Backend monorepo
-│   ├── api/                 # Fastify API server
+├── apps/
+│   ├── api/                    # Fastify API server
 │   │   └── src/
-│   │       ├── config/      # Bootstrap, secrets
-│   │       ├── db/          # Database connections & migrations
-│   │       ├── jobs/        # Background sync jobs
-│   │       ├── lib/         # Logger
-│   │       ├── middleware/  # Error handler
-│   │       ├── modules/     # Route modules (health, vault, chat, etc.)
-│   │       └── services/    # Service integrations
-│   ├── packages/            # Shared packages (@ra1/types)
-│   ├── infra/               # Docker init scripts
-│   ├── services/            # Service configs
-│   └── docker-compose.yml
-├── pepper/                  # LibreChat config
-├── README.md                # Project overview
-└── SETUP.md                 # This file
+│   │       ├── config/         # Bootstrap, secrets
+│   │       ├── db/             # Database connections & migrations
+│   │       ├── jobs/           # Background sync jobs
+│   │       ├── lib/            # Logger
+│   │       ├── middleware/     # Error handler
+│   │       ├── modules/        # Route modules (health, vault, chat, etc.)
+│   │       └── services/       # Service integrations (infisical, litellm, etc.)
+│   └── canvas/                 # React + Vite frontend
+│       ├── src/
+│       │   ├── components/     # Sidebar, TopBar
+│       │   ├── data/           # Provider registry, model definitions
+│       │   ├── hooks/          # Changelog sync
+│       │   ├── nodes/          # ModelNode, ProviderNode, VaultNode
+│       │   ├── pages/          # ModelsPage, ModelTestPage
+│       │   ├── services/       # model-discovery, vault.service
+│       │   ├── store/          # Zustand stores (canvas, model, vault)
+│       │   └── utils/          # Layout helpers
+│       ├── public/             # Static assets
+│       ├── Dockerfile
+│       └── package.json
+├── packages/
+│   └── types/                  # Shared types (@ra1/types)
+├── services/
+│   ├── infra/                  # Docker init scripts
+│   ├── litellm/                # LiteLLM configs
+│   └── postgres/               # Multi-DB init script
+├── pepper/                     # LibreChat config
+├── docker-compose.yml           # Root orchestrator
+├── .env.example                # Environment template
+├── README.md                   # Project overview
+└── SETUP.md                    # This file
 ```
 
 ---

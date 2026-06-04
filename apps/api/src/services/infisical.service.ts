@@ -150,7 +150,7 @@ export async function resolveKey(providerId: string, userId?: string): Promise<s
   const client = await getClient();
 
   if (!client) {
-    throw new Error('Infisical client not initialized — cannot resolve key without INFISICAL_SERVICE_TOKEN');
+    return null;
   }
 
   const projectId = getProjectId(userId);
@@ -200,7 +200,7 @@ export async function listKeys(userId?: string): Promise<StoredKeyMetadata[]> {
   const client = await getClient();
 
   if (!client) {
-    throw new Error('Infisical client not initialized — cannot list keys without INFISICAL_SERVICE_TOKEN');
+    return [];
   }
 
   const projectId = getProjectId(userId);
@@ -247,7 +247,7 @@ export async function revokeKey(providerId: string, userId?: string): Promise<bo
   const normalizedId = providerId.toLowerCase();
 
   if (!client) {
-    throw new Error('Infisical client not initialized — cannot revoke key without INFISICAL_SERVICE_TOKEN');
+    return false;
   }
 
   const projectId = getProjectId(userId);
