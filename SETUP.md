@@ -15,61 +15,33 @@ This guide covers everything you need to get the RA1 platform running on your lo
 
 ---
 
-## Quick Install (5 Minutes)
+## Quick Start
 
-### 1. Clone the Repository
-
+### First time only
 ```bash
-git clone https://github.com/Aashish-RC/Ra1.git
-cd Ra1
+./run.sh init
+```
+This creates `.env` and auto-generates all required secrets. Nothing to fill in manually.
+
+### Every time
+```bash
+./run.sh dev
+```
+Starts canvas, API, postgres, valkey, and LiteLLM. Waits for health. Opens `http://localhost:5173` in your browser automatically.
+
+### Check what's running
+```bash
+./run.sh status
 ```
 
-### 2. Configure Environment
-
-```bash
-cp .env.example .env
+### Windows
+```powershell
+.\run.ps1 init
+.\run.ps1 dev
+.\run.ps1 status
 ```
 
-### 3. Fill in the 5 Quick Start Values
-
-Edit `.env` and generate the required secrets:
-
-```bash
-# Generate each value with openssl:
-openssl rand -hex 32   # for POSTGRES_PASSWORD, JWT_SECRET, INFISICAL_AUTH_SECRET
-openssl rand -hex 16   # for LITELLM_MASTER_KEY (prefix with sk-ra1-), INFISICAL_ENCRYPTION_KEY
-```
-
-Set these values in `.env`:
-- `POSTGRES_PASSWORD` — any password, e.g. `ra1local`
-- `LITELLM_MASTER_KEY` — format: `sk-ra1-` followed by hex, e.g. `sk-ra1-a1b2c3d4e5f6a7b8`
-- `JWT_SECRET` — 64 hex chars from `openssl rand -hex 32`
-- `INFISICAL_ENCRYPTION_KEY` — 32 hex chars from `openssl rand -hex 16`
-- `INFISICAL_AUTH_SECRET` — 64 hex chars from `openssl rand -hex 32`
-
-### 4. Start Everything with Docker
-
-```bash
-# Minimal stack (postgres + valkey + api + canvas + litellm):
-docker compose up -d canvas api postgres valkey litellm
-
-# Or full stack (all services including optional ones):
-docker compose up -d
-```
-
-> ⏳ First run will download Docker images (~2-4GB). Subsequent runs are instant.
-> 📌 The Canvas frontend is served at **http://localhost:5173** with hot-reload.
-
-### 5. Open in Browser
-
-Navigate to **[http://localhost:5173](http://localhost:5173)** and click the **"Model Test"** tab.
-
-### 6. Add a Provider Key and Test
-
-1. In the Vault section, click **"Add Key"** (or use the Canvas → Vault node).
-2. Enter your provider API key (e.g., OpenAI, Anthropic).
-3. Click **"Test"** to verify connectivity.
-4. Send a chat message to test the full flow.
+That's it. No `cd`. No separate terminals. No manual secret generation.
 
 ---
 
