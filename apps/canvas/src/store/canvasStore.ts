@@ -28,6 +28,18 @@ function systemNode(id: string, type: string, x: number, y: number): Node {
   return { id, type, position: { x, y }, data: {}, draggable: false, selectable: true, deletable: false }
 }
 
+function getOrbitalPosition(index: number, total: number, cx: number, cy: number, r: number): XYPosition {
+  // Start from top (−90°), spread evenly. Cap arc to 270° so they don't overlap behind the node.
+  const arcSpan = Math.min(270, total * 60)
+  const startAngle = -90 - arcSpan / 2
+  const step = total > 1 ? arcSpan / (total - 1) : 0
+  const angle = (startAngle + index * step) * (Math.PI / 180)
+  return {
+    x: cx + r * Math.cos(angle) - 36,  // −36 to center the 72px chip
+    y: cy + r * Math.sin(angle) - 36,
+  }
+}
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   nodes: [],
   edges: [],
@@ -71,25 +83,45 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set(s => ({ edges: applyEdgeChanges(changes, s.edges) }))
   },
 
-  dropProvider: (providerId, position) => {
+  dropProvider: (providerId, _position) => {
     const placed = useModelStore.getState().placeProvider(providerId)
     const nodeId = placed.id
+
+    // Calculate orbital position around the model node
+    const modelNode = get().nodes.find(n => n.id === 'model')
+    const modelPos = modelNode?.position ?? { x: 400, y: 200 }
+    const cx = modelPos.x + 120
+    const cy = modelPos.y + 60
+
+    const existingProviders = get().nodes.filter(n => n.type === 'provider-node')
+    const providerCount = existingProviders.length
+
+    const orbPos = getOrbitalPosition(providerCount, providerCount + 1, cx, cy, 280)
 
     const newNode: Node = {
       id: nodeId,
       type: 'provider-node',
-      position,
+      position: orbPos,
       data: { nodeId, providerId },
-      draggable: true,
+      draggable: false,
       selectable: true,
       deletable: true,
     }
+
+    // Reposition all existing provider nodes to redistribute evenly
+    const allProviderNodes = [...existingProviders, newNode]
+    const repositionedNodes = get().nodes.map(n => {
+      if (n.type !== 'provider-node') return n
+      const idx = allProviderNodes.findIndex(p => p.id === n.id)
+      if (idx === -1) return n
+      return { ...n, position: getOrbitalPosition(idx, allProviderNodes.length, cx, cy, 280) }
+    })
 
     const next = new Set(get().expandedIds)
     next.add(nodeId)
 
     set(s => ({
-      nodes: [...s.nodes, newNode],
+      nodes: [...repositionedNodes.filter(n => n.id !== nodeId), newNode],
       edges: [...s.edges],
       expandedIds: next,
     }))

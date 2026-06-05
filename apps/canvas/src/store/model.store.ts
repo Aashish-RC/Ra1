@@ -66,6 +66,10 @@ interface ModelStore {
 
   setPendingChanges: (data: { hasChanges: boolean; changes: Record<string, ChangelogEntry[]>; lastChecked: string }) => void
   applyChanges: (providerIds: string[]) => Promise<void>  // calls POST /changelog/apply, then merges snapshots into provider models
+
+  // Key edit open state (survives re-renders)
+  keyEditOpen: Record<string, boolean>
+  setKeyEditOpen: (nodeId: string, open: boolean) => void
 }
 
 export const useModelStore = create<ModelStore>((set, get) => ({
@@ -82,6 +86,10 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   hasChanges: false,
   lastChecked: 0,
   lastSyncedAt: {},
+
+  keyEditOpen: {},
+  setKeyEditOpen: (nodeId, open) =>
+    set(s => ({ keyEditOpen: { ...s.keyEditOpen, [nodeId]: open } })),
 
   placeProvider: (providerId) => {
     const def = PROVIDER_REGISTRY[providerId]

@@ -78,7 +78,7 @@ function ModelRow({
 
 function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; providerId: ProviderId }) {
   const def = PROVIDER_REGISTRY[providerId]
-  const { providers, setTemperature, toggleModel, syncModels, syncStatus, syncError, lastSyncedAt } = useModelStore()
+  const { providers, setTemperature, toggleModel, syncModels, syncStatus, syncError, lastSyncedAt, keyEditOpen, setKeyEditOpen } = useModelStore()
   const { saveKey, hasKey, getEntry, setKeyValid } = useVaultStore()
   const { removeProviderNode } = useCanvasStore()
 
@@ -86,7 +86,8 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
   if (!provider) return null
 
   const [editKey, setEditKey] = useState('')
-  const [showKeyInput, setShowKeyInput] = useState(false)
+  const showKeyInput = keyEditOpen[nodeId] ?? false
+  const setShowKeyInput = (v: boolean) => setKeyEditOpen(nodeId, v)
   const [allowImageUploads, setAllowImageUploads] = useState(false)
   const [keySaved, setKeySaved] = useState(false)
 
@@ -324,40 +325,34 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
 
 function ProviderNodeCollapsed({ nodeId, providerId }: { nodeId: string; providerId: ProviderId }) {
   const def = PROVIDER_REGISTRY[providerId]
-  const { providers, pendingChanges } = useModelStore()
+  const { providers } = useModelStore()
+  const { entries: vaultEntries } = useVaultStore()
   const provider = providers[nodeId]
-  const newCount = provider?.models.filter(m => m.newlyDiscovered).length ?? 0
-  const depCount = provider?.models.filter(m => m.deprecated).length ?? 0
-  const pendingCount = pendingChanges[providerId]?.length ?? 0
+
+  const keyEntry = vaultEntries[providerId]
+  const keyValid = keyEntry?.isValid
+  const statusColor =
+    keyValid === true ? '#22c55e' :
+    keyValid === false ? '#ef4444' : '#6b7280'
 
   return (
     <div
-      className="pn-collapsed"
-      data-provider={providerId}
-      data-pending={pendingCount > 0 ? 'true' : undefined}
-      data-status={provider?.status ?? 'unknown'}
+      className="pn-chip"
+      title={`${def.name} — click to manage`}
+      style={{ '--chip-color': def.color } as React.CSSProperties}
     >
-      <Handle type="source" position={Position.Right} id="key-out" style={{ top: '50%' }} />
-      <div className="pn-collapsed-icon-wrap">
-        {def.icon}
-        <div className="pn-collapsed-status-dot" />
-        {pendingCount > 0 && (
-          <div className="pn-collapsed-pending-dot" />
-        )}
+      <Handle type="source" position={Position.Right} id="key-out" style={{ opacity: 0 }} />
+      <div className="pn-chip-ring" style={{ borderColor: def.color + '44' }}>
+        <span className="pn-chip-icon">{def.icon}</span>
+        <div
+          className="pn-chip-status"
+          style={{ background: statusColor }}
+          title={keyValid === true ? 'Key valid' : keyValid === false ? 'Key invalid' : 'Untested'}
+        />
       </div>
-      <div className="pn-collapsed-text-wrap">
-        <div className="pn-collapsed-name">{def.name}</div>
-        <div className="pn-collapsed-sub">
-          {provider ? `${provider.models.filter(m => m.enabled).length} enabled` : 'loading...'}
-        </div>
-        {(pendingCount > 0 || newCount > 0 || depCount > 0) && (
-          <div className="pn-collapsed-badges">
-            {pendingCount > 0 && <span className="pn-collapsed-badge pn-collapsed-badge--pending">{pendingCount} pending</span>}
-            {newCount > 0 && <span className="pn-collapsed-badge pn-collapsed-badge--new">{newCount} new</span>}
-            {depCount > 0 && <span className="pn-collapsed-badge pn-collapsed-badge--depr">{depCount} dep.</span>}
-          </div>
-        )}
-      </div>
+      {provider?.models.filter(m => m.newlyDiscovered).length > 0 && (
+        <div className="pn-chip-badge">NEW</div>
+      )}
     </div>
   )
 }
