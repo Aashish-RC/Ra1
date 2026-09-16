@@ -1,12 +1,12 @@
-# Ra1 - Rivet Canvas Foundation (Phase 1, Step 1)
+# Rivet Canvas Foundation (Phase 1, Step 1)
 
 Visual node-canvas foundation for AI workflow authoring, directly modeled on and sourced from [Ironclad Rivet](https://github.com/Ironclad/rivet) (MIT License).
 
 ---
 
-## Overview
+## 1. Overview
 
-Ra1 provides a complete browser-based node canvas with:
+Ra1 provides a complete browser-based visual node canvas with:
 - **Interactive Infinite Canvas**: Smooth pan/zoom, grid background, node selection, drag-to-move, and deletion.
 - **Dynamic Port-to-Port Wiring**: Curved SVG cubic-bezier connection wires with auto-routing, click-to-delete, and input/output connection validation.
 - **109 Merged Built-in Nodes**: All 109 core, OpenAI Assistants, and plugin nodes ported directly from Ironclad Rivet, organized in a searchable tray palette with drag-and-drop onto the canvas.
@@ -18,48 +18,80 @@ Ra1 provides a complete browser-based node canvas with:
 
 ---
 
-## Directory Structure
+## 2. Directory Structure
 
 ```text
-Ra1/
-├── README.md                   # Repository overview and quick start guide
+├── README.md                   # Setup, architecture, and run instructions
+├── LICENSE                     # MIT License (retaining Ironclad Rivet copyright notice)
 ├── .gitignore                  # Git ignore rules
-└── codebase/                   # Clean codebase implementation
-    ├── README.md               # Detailed technical documentation and architecture
-    ├── LICENSE                 # MIT License (retaining Ironclad Rivet copyright)
-    ├── automated-test-report.md# Automated UI test suite results (Playwright, 9/9 passing)
-    ├── manual-testing-guide.md # Human verification manual and step-by-step checklist
-    ├── package.json            # Root workspace scripts
-    ├── docs/
-    │   ├── NODE_CONTRACT.md    # TypeScript node contract specification & custom node guide
-    │   └── MERGED_NODES.md     # Full catalog of 109 merged nodes & upstream source file mapping
-    ├── backend/
-    │   ├── package.json        # Backend dependencies (ws, yaml, nanoid, tsx)
-    │   ├── debugger/           # Live-debugging bridge server & CLI executor
-    │   ├── storage/            # Lossless YAML graph serialization/deserialization
-    │   ├── trivet/             # Trivet graph-testing framework
-    │   └── nodes/              # All 109 node definitions and TypeScript contracts
-    └── frontend/
-        ├── package.json        # Frontend dependencies (React, Vite, Lucide, Playwright)
-        ├── vite.config.ts
-        ├── tsconfig.json
-        ├── playwright.config.ts# Playwright automated test configuration
-        ├── tests/              # 9-scenario Playwright UI test suite
-        └── src/                # Canvas UI components, state management, and design system
+├── package.json                # Root workspace scripts
+├── automated-test-report.md    # Automated UI test results (Playwright, 9/9 passing)
+├── manual-testing-guide.md     # Step-by-step human verification checklist & manual
+├── docs/
+│   ├── NODE_CONTRACT.md        # Comprehensive TypeScript contract guide & custom node tutorial
+│   └── MERGED_NODES.md         # Full catalog of all 109 merged nodes & source file origins
+├── backend/
+│   ├── package.json            # Backend workspace dependencies (ws, yaml, nanoid, tsx)
+│   ├── debugger/               # Live-debugging bridge server & CLI executor
+│   │   ├── debuggerServer.ts   # WebSocket server handling UI debugger connections
+│   │   └── executor.ts         # Standalone runner for the live-debugging bridge
+│   ├── trivet/                 # Graph-testing framework (ported from packages/trivet)
+│   │   ├── api.ts              # Trivet test runner (runTrivet)
+│   │   ├── trivetTypes.ts      # Test suite, test case, and results schemas
+│   │   ├── validateTestCaseFormat.ts
+│   │   └── validateValidationGraphFormat.ts
+│   ├── storage/
+│   │   └── yamlStorage.ts      # Lossless YAML graph/project serialization & deserialization
+│   └── nodes/
+│       ├── contract/           # Core TypeScript node contracts
+│       │   ├── NodeBase.ts     # NodeBase, ChartNode, PortDefinition, VisualData
+│       │   ├── PortDefinition.ts
+│       │   ├── NodeConnection.ts
+│       │   ├── NodeDefinition.ts
+│       │   ├── NodeImpl.ts     # Abstract NodeImpl lifecycle class
+│       │   ├── NodeRegistration.ts
+│       │   └── DataValue.ts    # Runtime typed data representations
+│       ├── allNodes.ts         # Master registry containing all 109 merged nodes
+│       ├── core/               # 84 built-in core node definitions from Rivet
+│       ├── assistants/         # 15 OpenAI Assistants nodes from Rivet
+│       └── plugins/            # 10 integrated plugin nodes (Claude, Gemini, Hugging Face, etc.)
+└── frontend/
+    ├── package.json            # Frontend Vite + React + Playwright setup
+    ├── vite.config.ts
+    ├── tsconfig.json
+    ├── index.html              # Modern dark typography & SEO tags
+    ├── playwright.config.ts    # Automated test runner config
+    ├── tests/
+    │   └── canvas.spec.ts      # 9-scenario Playwright UI test suite
+    └── src/
+        ├── App.tsx             # Main canvas application
+        ├── main.tsx
+        ├── styles/
+        │   └── index.css       # Rivet dark theme design system & CSS tokens
+        └── components/
+            ├── Canvas.tsx      # Pan/zoom viewport & drop target
+            ├── VisualNode.tsx  # Node card, ports, selection, and drag-to-move
+            ├── Port.tsx        # Port dots with type-specific color coding
+            ├── Wire.tsx        # SVG cubic bezier connection curve
+            ├── WireLayer.tsx   # Wires overlay renderer
+            ├── NodePalette.tsx # Searchable 109-node sidebar tray
+            ├── CodeEditorModal.tsx # Editable script view for code/prompt nodes
+            ├── DebuggerPanel.tsx   # Live-debugging bridge connection panel
+            └── YamlModal.tsx   # YAML export, import, and flow reloading dialog
 ```
 
 ---
 
-## Quick Start Guide
+## 3. How to Run Locally
 
 ### Prerequisites
-- Node.js >= 18
+- Node.js >= 18 (tested on Node.js v24)
 - npm >= 9
 
-### 1. Install Dependencies
+### Step 1: Install Dependencies
 ```bash
 # Frontend
-cd codebase/frontend
+cd frontend
 npm install
 
 # Backend
@@ -67,38 +99,67 @@ cd ../backend
 npm install
 ```
 
-### 2. Start the Frontend Studio
+### Step 2: Start the Frontend Canvas Studio
 ```bash
-cd ../frontend
+# From repository root:
+npm run dev
+
+# Or directly in frontend:
+cd frontend
 npm run dev
 ```
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### 3. Start the Live-Debugging Bridge (Optional)
+### Step 3 (Optional): Start the Live-Debugging Bridge Server
+In a separate terminal:
 ```bash
-cd codebase/backend
+# From repository root:
+npm run start:debugger
+
+# Or directly in backend:
+cd backend
 npm run start:debugger
 ```
-WebSocket server listens on `ws://localhost:21889`. Click **"Debugger Bridge"** in the canvas top bar to connect.
+The server will start listening on `ws://localhost:21889`. Click **"Debugger Bridge"** in the top navigation bar of the canvas to connect.
 
-### 4. Run Automated UI Tests
+### Step 4: Run Automated UI Tests
 ```bash
-cd codebase/frontend
+# From repository root:
+npm run test:ui
+
+# Or directly in frontend:
+cd frontend
 npm run test:ui
 ```
-Runs the full 9-scenario Playwright UI test suite headlessly.
+Runs the full 9-scenario Playwright UI test suite headlessly. All 9 tests pass in ~18 seconds.
 
 ---
 
-## Documentation Links
+## 4. Rivet Source Reference Mapping
 
-- [Codebase Architecture & Details](codebase/README.md)
-- [Node Contract Specification](codebase/docs/NODE_CONTRACT.md)
-- [Merged Nodes Catalog (109 Nodes)](codebase/docs/MERGED_NODES.md)
-- [Automated Test Suite Report](codebase/automated-test-report.md)
-- [Manual Testing Guide & Checklist](codebase/manual-testing-guide.md)
+The following modules in this codebase directly reference and adapt Ironclad Rivet's core packages:
+
+| Component | Repository Path | Rivet Upstream Reference |
+|---|---|---|
+| Node Contract | `backend/nodes/contract/` | `packages/core/src/model/NodeBase.ts`, `NodeDefinition.ts`, `NodeImpl.ts` |
+| Built-in Core Nodes | `backend/nodes/core/` | `packages/core/src/model/nodes/*.ts` |
+| OpenAI Assistants Nodes | `backend/nodes/assistants/` | `packages/core/src/plugins/openai/nodes/*.ts` |
+| Integrated Plugin Nodes | `backend/nodes/plugins/` | `packages/core/src/plugins/{anthropic,google,huggingface,assemblyAi,autoevals}` |
+| Debugger Bridge | `backend/debugger/` | `packages/app-executor/bin/executor.mts` & `packages/node/src/debugger.ts` |
+| Graph-Testing Framework | `backend/trivet/` | `packages/trivet/src/*` |
+| Canvas UI | `frontend/src/components/` | `packages/app/src/components/{NodeCanvas,VisualNode,Wire,DebuggerConnectPanel}` |
+| Flow Serialization | `backend/storage/yamlStorage.ts` | `packages/core/src/model/Project.ts` (adapted to YAML) |
 
 ---
 
-## License
+## 5. Documentation Links
+
+- [Node Contract Specification](docs/NODE_CONTRACT.md)
+- [Merged Nodes Catalog (109 Nodes)](docs/MERGED_NODES.md)
+- [Automated Test Report](automated-test-report.md)
+- [Manual Testing Guide](manual-testing-guide.md)
+
+---
+
+## 6. License
 MIT License. Contains code derived from [Ironclad Rivet](https://github.com/Ironclad/rivet), Copyright (c) 2024 Ironclad, Inc.

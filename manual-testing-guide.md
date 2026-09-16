@@ -8,11 +8,13 @@ This document provides complete instructions for setting up, running, and manual
 
 Follow these exact steps from the terminal in your repository root:
 
-### Step 1: Navigate to the codebase folder and install dependencies
+### Step 1: Install dependencies
 ```bash
-cd codebase/frontend
+# Frontend
+cd frontend
 npm install
 
+# Backend
 cd ../backend
 npm install
 ```
@@ -21,7 +23,10 @@ npm install
 
 ### Step 2: Launch the Frontend Canvas Studio
 ```bash
-cd ../frontend
+# From frontend folder:
+npm run dev
+
+# Or from repository root:
 npm run dev
 ```
 *Expected Output*:
@@ -36,7 +41,11 @@ In Codespaces, click the **Open in Browser** notification or open port `5173`.
 ### Step 3 (Optional): Launch the Live-Debugging Bridge Server
 In a second terminal window:
 ```bash
-cd codebase/backend
+# From backend folder:
+cd backend
+npm run start:debugger
+
+# Or from repository root:
 npm run start:debugger
 ```
 *Expected Output*:
