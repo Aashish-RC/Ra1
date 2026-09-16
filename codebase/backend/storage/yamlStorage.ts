@@ -5,7 +5,7 @@
  */
 
 import yaml from 'yaml';
-import type { ChartNode, NodeConnection } from '../nodes/contract/NodeBase.js';
+import type { ChartNode, NodeConnection } from '../nodes/contract/index.js';
 
 export interface FlowGraphMetadata {
   id: string;

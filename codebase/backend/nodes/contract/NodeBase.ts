@@ -16,6 +16,8 @@ export type NodeId = string;
  */
 export type PortId = string;
 
+export type { NodeConnection } from './NodeConnection.js';
+
 /**
  * Visual coordinates, dimensions, and styling data for a node on the canvas.
  * Note: visualData does not affect graph execution logic.
