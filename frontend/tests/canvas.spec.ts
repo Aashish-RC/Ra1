@@ -146,16 +146,19 @@ test.describe('Rivet Canvas Foundation Suite', () => {
     await zoomResetBtn.click();
     await expect(zoomIndicator).toHaveText('100%');
 
-    // Test Panning: Drag canvas viewport
-    const viewport = page.locator('#canvas-viewport');
-    await page.mouse.move(500, 300);
+    // Test Panning: Drag canvas background
+    const panCoords = page.locator('#canvas-pan-coords');
+    await expect(panCoords).toHaveText('0, 0');
+
+    await page.mouse.move(600, 400);
     await page.mouse.down();
-    await page.mouse.move(400, 200, { steps: 5 });
+    await page.mouse.move(500, 300, { steps: 5 });
     await page.mouse.up();
 
-    // Pan info should reflect displacement
-    const panInfo = page.locator('.canvas-info-bar');
-    await expect(panInfo).toBeVisible();
+    // Verify pan coordinates and transform reflect the -100, -100 displacement
+    await expect(panCoords).toHaveText('-100, -100');
+    const style = await transformLayer.getAttribute('style');
+    expect(style).toContain('translate(-100px, -100px)');
   });
 
   test('7. Opening a node reveals its editable code view', async ({ page }) => {

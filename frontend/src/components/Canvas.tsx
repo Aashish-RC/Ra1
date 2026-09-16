@@ -48,22 +48,62 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   // Pan canvas on drag background
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    // Only pan if clicking canvas viewport directly or middle button
-    if (e.target === viewportRef.current || (e.target as HTMLElement).id === 'wire-svg-layer' || e.button === 1) {
+    // Middle click always pans
+    if (e.button === 1) {
       onSelectNode(null);
       setIsPanning(true);
       panStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      return;
     }
+
+    // Only pan on primary left mouse button
+    if (e.button !== 0) return;
+
+    const target = e.target as HTMLElement;
+
+    // Do NOT pan if interacting with a node, port, control buttons, or interactive wire
+    if (
+      target.closest('.visual-node') ||
+      target.closest('.port-handle') ||
+      target.closest('.canvas-controls') ||
+      target.closest('.canvas-info-bar') ||
+      target.closest('.wire-group') ||
+      target.closest('button') ||
+      target.closest('input')
+    ) {
+      return;
+    }
+
+    onSelectNode(null);
+    setIsPanning(true);
+    panStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
   };
 
-  const handleCanvasMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
+  // Window-level mouse listeners for smooth, uninterrupted panning
+  useEffect(() => {
+    if (!isPanning) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
       setPan({
         x: e.clientX - panStart.current.x,
         y: e.clientY - panStart.current.y,
       });
-    }
+    };
 
+    const handleWindowMouseUp = () => {
+      setIsPanning(false);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [isPanning]);
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
     if (connectingWire && viewportRef.current) {
       const rect = viewportRef.current.getBoundingClientRect();
       const currentX = (e.clientX - rect.left - pan.x) / zoom;
@@ -73,9 +113,6 @@ export const Canvas: React.FC<CanvasProps> = ({
   };
 
   const handleCanvasMouseUp = () => {
-    if (isPanning) {
-      setIsPanning(false);
-    }
     if (connectingWire) {
       setConnectingWire(null);
     }
@@ -199,6 +236,10 @@ export const Canvas: React.FC<CanvasProps> = ({
       ref={viewportRef}
       id="canvas-viewport"
       className={`canvas-viewport ${isPanning ? 'panning' : ''}`}
+      style={{
+        backgroundPosition: `${pan.x}px ${pan.y}px`,
+        backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
+      }}
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleCanvasMouseMove}
       onMouseUp={handleCanvasMouseUp}
@@ -278,7 +319,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           <span>Wires:</span> <strong id="canvas-wire-count">{connections.length}</strong>
         </div>
         <div className="info-item">
-          <span>Pan:</span> <span>{Math.round(pan.x)}, {Math.round(pan.y)}</span>
+          <span>Pan:</span> <span id="canvas-pan-coords">{Math.round(pan.x)}, {Math.round(pan.y)}</span>
         </div>
       </div>
     </div>

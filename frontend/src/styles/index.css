@@ -258,15 +258,12 @@ html, body, #root {
   background-color: var(--bg-main);
   background-image: radial-gradient(var(--canvas-grid-dot) 1.5px, transparent 1.5px);
   background-size: 24px 24px;
-  cursor: default;
-}
-
-.canvas-viewport.panning {
   cursor: grab;
 }
 
-.canvas-viewport.panning:active {
-  cursor: grabbing;
+.canvas-viewport.panning {
+  cursor: grabbing !important;
+  user-select: none;
 }
 
 .canvas-transform-layer {
