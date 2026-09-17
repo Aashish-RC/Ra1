@@ -223,6 +223,6 @@ test.describe('ReAct Agent Loop & Human-In-The-Loop Approval Suite', () => {
 
     const finalMsg = await sendPromise;
     assert.equal(finalMsg.role, 'assistant');
-    assert.ok(approvalMsg.approvalRequest?.status === 'approved');
+    assert.equal((approvalMsg.approvalRequest?.status as string), 'approved');
   });
 });
