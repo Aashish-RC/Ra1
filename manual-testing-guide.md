@@ -312,6 +312,158 @@ The following behaviors are **by design** for Phase 1 Steps 1–6:
 1. **Simulated Pooled Key in Local Dev**: Unless `OPENROUTER_API_KEY` or `AGGREGATOR_API_KEY` is exported in your local environment, the engine operates in simulated pooled quota mode to prevent accidental credit burn during local development and testing.
 2. **Read-Only Mock Debugger Stream**: If the debugger bridge backend is not started in a separate terminal, attempting to connect in the UI will log a connection error; this is expected behavior when the WebSocket server is offline.
 3. **Pure DOM Canvas Rendering**: Rendering is optimized using React + SVG bezier paths. Ultra-massive graphs (1,000+ simultaneous nodes) will receive WebGL/Canvas2D virtualization in later performance tuning phases.
-4. **ActivePieces Reference Scope**: ActivePieces is analyzed as a structural reference study only (`docs/ACTIVEPIECES_REFERENCE.md`). No connector packages are imported and no execution runtime from ActivePieces is bundled.
+4. **ActivePieces Reference Scope**: ActivePieces is analyzed as a structural reference study only (see `docs/ARCHITECTURE.md` Section 4). No connector packages are imported and no execution runtime from ActivePieces is bundled. Phase 4 wires 3 MIT community pieces as native connector nodes.
 5. **Admin Panel UI on Hold**: Budget and usage tracking are active in the engine layer (`UsageStore`, `BudgetTracker`); full visual admin dashboard UI is on hold per project roadmap.
+
+---
+
+## 7. Phase 1, Step 2: Langflow Editable-Node-Code & ActivePieces Reference
+
+*Merged from `docs/MANUAL_TESTING_STEP2.md` (Phase 3 Step 0 consolidation)*
+
+**Scope:** Langflow Editable-Node-Code Pattern & ActivePieces Reference Study  
+**Applies to:** Universal 109-node code editing, live visual card reflection, non-destructive wire preservation, YAML export/import cycle, and ActivePieces reference documentation.
+
+### 7.1 Overview of What's New in Step 2
+
+In Step 2, the canvas is extended with Langflow's **editable-node-code pattern** natively in TypeScript:
+- Every node on the canvas (from basic `Text` and `UserInput` to complex `Chat`, `LoopController`, or plugin nodes) features an in-place **Code** view button.
+- Opening the Code view dynamically presents idiomatic TypeScript source code (`NodeDefinition`) representing that node's inputs, outputs, initial parameters, and `process()` logic.
+- Editing the code (including custom logic or `@title <Custom Title>` metadata directives) updates the visual card on the canvas live.
+- Existing wire connections attached to the node remain 100% intact.
+- Edited source code (`customCode`) persists losslessly through YAML export and reload cycles.
+- ActivePieces' piece framework has been analyzed in `docs/ARCHITECTURE.md` Section 4.
+
+### 7.2 Step-by-Step Manual Testing Instructions
+
+#### Test Case 1: Universal Code View on Any Node
+1. Launch the local dev server: `npm --prefix frontend run dev`
+2. Open `http://localhost:5173` in your browser.
+3. Observe the pre-seeded `Input Prompt Text` node on the canvas.
+4. Click the **Code** button in its header.
+5. **Expected Result**: The `Editable Code View` modal opens with the title `Editable Code View: Input Prompt Text (text)`. The textarea displays the TypeScript `NodeDefinition` featuring `@title Input Prompt Text`, `inputs: []`, `outputs: [...]`, `initialData: {...}`, and `async process(inputs, context)`.
+6. Click **✕** or **Cancel** to close the modal.
+
+#### Test Case 2: Drag Any Palette Node and Inspect Code
+1. In the left sidebar node tray, search for or find a non-code node (e.g. `Chat`, `Match`, `Array`, or `Extract Regex`).
+2. Drag the node onto the canvas.
+3. Click the **Code** button on the newly created node.
+4. **Expected Result**: The modal opens displaying the generated TypeScript implementation tailored to that node's type, inputs, and outputs.
+
+#### Test Case 3: Live Visual Reflection Without Breaking Wires
+1. Observe the pre-existing wire connecting `Input Prompt Text` (output port) to `JavaScript Execution Block` (input port).
+2. Click the **Code** button on `Input Prompt Text`.
+3. In the code editor textarea, modify the title directive: change `// @title Input Prompt Text` to `// @title Live Filtered Prompt`.
+4. Click **Save Code Changes**.
+5. **Expected Result**: The modal closes. The node header title updates live. The wire remains visibly connected and intact.
+
+#### Test Case 4: YAML Export / Import Round-Trip with Custom Code
+1. With the edited node on canvas, click the **YAML Flow** button.
+2. In the `Export YAML Flow` tab, verify the YAML includes `customCode:` and the custom title.
+3. Switch to the **Import / Reload YAML** tab, paste the YAML, click **Load & Apply YAML**.
+4. **Expected Result**: Canvas reloads with the node retaining its custom title and custom TypeScript code.
+
+#### Test Case 5: Locate the ActivePieces Architectural Reference Study
+1. Open `docs/ARCHITECTURE.md` Section 4 in the repository.
+2. **Expected Result**: Document thoroughly analyzes piece declaration, authentication abstractions, input properties, action execution context, comparison matrix, design roadmap, and `packages/ee` exclusion verification.
+
+### 7.3 Human Verification Checklist (Step 2)
+
+| Check | Item | Status | Notes |
+| :---: | :--- | :---: | :--- |
+| [ ] | **Universal Code Button**: Every node box features a clickable **Code** button. | Pass | Works uniformly across all 109 node types |
+| [ ] | **TypeScript Template Generation**: Code modal generates idiomatic TypeScript source. | Pass | Displays `NodeDefinition` with inputs, outputs, process function |
+| [ ] | **Live Visual Synchronization**: Editing `@title` or logic updates node card title and snippet live. | Pass | Verified in UI and test 11 |
+| [ ] | **Wire Preservation**: Wires connecting the node remain intact after code edits and saving. | Pass | Verified in test 11 and visual canvas |
+| [ ] | **YAML Persistence**: `customCode` exports to YAML and restores on flow import. | Pass | Verified in test 12 |
+| [ ] | **ActivePieces Reference Document**: `docs/ARCHITECTURE.md` Section 4 exists and is comprehensive. | Pass | Architectural reference complete |
+| [ ] | **Playwright Suite**: All 12 automated scenarios pass with 0 regressions. | Pass | 12/12 passing in 29.2s |
+
+---
+
+## 8. Phase 1, Steps 4–6: Model Engine & Governance Layer Manual Testing
+
+*Merged from `docs/MANUAL_TESTING_MODEL_ENGINE.md` (Phase 3 Step 0 consolidation)*
+
+**Scope:** Model Engine, OmniRoute 4-Path Priority, Governance Layer, and Aggregator Integration  
+**Applies to:** Model selection modes (Dropdown, Search, Auto), Allow/Deny priority & hard exclusions, Virtual keys, Budgets, Rate limits, BYOK/BYOI routing.
+
+### 8.1 Overview & Setup
+
+The Model Engine provides unified model execution and governance for the visual canvas. It operates in **zero-setup mode** by default, using pooled quota without requiring developer API keys.
+
+#### Optional Local Environment Configuration
+```bash
+export OPENROUTER_API_KEY="your-openrouter-key"
+# or
+export AGGREGATOR_API_KEY="your-openrouter-key"
+```
+*Note*: If no key is set, the engine operates in simulated pooled quota mode for local offline development.
+
+### 8.2 Step-by-Step Manual Verification Checklist
+
+#### Item 1: Running Model Engine Automated Tests
+```bash
+npx tsx --test backend/tests/engine.test.ts
+```
+**Expected Result**: All 14 tests pass cleanly with zero failures.
+
+#### Item 2: Verifying Phase 1 Canvas Regression
+```bash
+npm --prefix frontend run test:ui
+```
+**Expected Result**: All 12 canvas UI scenarios pass with zero regressions.
+
+#### Item 3: Programmatic Engine Verification via Node REPL or Script
+```typescript
+import { ModelEngine } from './backend/engine/index.js';
+const engine = new ModelEngine();
+const key = engine.issueVirtualKey({ userId: 'user-tester', maxSpendUSD: 10.0, rateLimitRPM: 60 });
+const response = await engine.execute({
+  messages: [{ role: 'user', content: 'Write a quick function to reverse a string' }],
+  selectionMode: 'auto',
+  virtualKey: key.key,
+});
+console.log('Selected Model:', response.model);
+console.log('Route Used:', response.routeUsed);
+console.log('Output Text:', response.text);
+```
+**Expected Result**: Virtual key starts with `vk-usr-`, Auto mode selects a coding model, route used is `pooled-aggregator`.
+
+#### Item 4: Verifying Hard Deny-List Enforcement
+```typescript
+import { ModelEngine } from './backend/engine/index.js';
+const engine = new ModelEngine();
+try {
+  await engine.execute({
+    messages: [{ role: 'user', content: 'Hello' }],
+    model: 'openai/gpt-4o',
+    selectionMode: 'dropdown',
+    denyList: ['openai/gpt-4o'],
+  });
+} catch (err) {
+  console.log('Caught Expected Error:', err.message);
+}
+```
+**Expected Result**: The engine throws: `Requested model "GPT-4o Omni" (openai/gpt-4o) is forbidden by the deny-list.`
+
+### 8.3 Human Verification Checklist (Steps 4–6)
+
+| # | Check Item | Status | Verification Notes |
+| :---: | :--- | :---: | :--- |
+| **1** | Default pooled quota routing without keys | **PASS** | Sits on `pooled-aggregator` path |
+| **2** | BYOK fallback on pooled quota exhaustion | **PASS** | Dispatches to `byok` when user key present |
+| **3** | BYOI fallback on custom infrastructure | **PASS** | Dispatches to `byoi` local endpoint |
+| **4** | Dropdown model selection | **PASS** | Exact model binding |
+| **5** | Search-in-dropdown query filtering | **PASS** | Matches models, providers, and capabilities |
+| **6** | Task-aware Auto model selection | **PASS** | Classifies prompts (code/math/reasoning/simple) |
+| **7** | Allow-list priority (reaches outside when justified) | **PASS** | Boosts allowed models without hard cap |
+| **8** | Deny-list hard exclusion | **PASS** | Strict culling from candidates and fallbacks |
+| **9** | Notification policy (`always`, `cost-impacting`, `never`) | **PASS** | Flags cost-impacting deviations |
+| **10** | Virtual key issuance | **PASS** | Generates `vk-usr-...` / `vk-team-...` |
+| **11** | Budget cap enforcement | **PASS** | Blocks immediately when spend cap exceeded |
+| **12** | Rate limit enforcement (RPM/TPM) | **PASS** | Throws `RateLimitExceededError` |
+| **13** | Aggregator path end-to-end | **PASS** | OpenRouter aggregator resolves completions |
+| **14** | Auto-fallback chain on simulated failure | **PASS** | Failover to next candidate in chain |
+| **15** | Phase 1 canvas regression check | **PASS** | 12/12 Playwright tests passing |
 
