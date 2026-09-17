@@ -12,6 +12,7 @@ import { SandboxPanel } from './components/panels/SandboxPanel.js';
 import { DataTablePanel } from './components/panels/DataTablePanel.js';
 import { PdfViewerPanel } from './components/panels/PdfViewerPanel.js';
 import { OnboardingWizard, type OnboardingPreferences } from './components/onboarding/OnboardingWizard.js';
+import { AuthModal, type AuthUserProfile } from './components/auth/AuthModal.js';
 import { NODES_BY_TYPE } from '../../backend/nodes/allNodes.js';
 import type { VisualNodeData } from './components/VisualNode.js';
 import type { WireConnectionItem } from './components/WireLayer.js';
@@ -62,6 +63,44 @@ export const App: React.FC = () => {
 
   // Chat panel state
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  // Authentication & Space state
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUserProfile | null>(() => {
+    try {
+      const stored = localStorage.getItem('ra1_auth_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [currentSpaceId, setCurrentSpaceId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ra1_active_space') || 'space-default';
+    } catch {
+      return 'space-default';
+    }
+  });
+
+  const handleLogin = useCallback((user: AuthUserProfile, token: string) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem('ra1_auth_user', JSON.stringify(user));
+      localStorage.setItem('ra1_auth_token', token);
+    } catch (err) {
+      console.error('Failed to save auth to localStorage', err);
+    }
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('ra1_auth_user');
+      localStorage.removeItem('ra1_auth_token');
+    } catch (err) {
+      console.error('Failed to clear auth from localStorage', err);
+    }
+  }, []);
 
   // Onboarding wizard state (optional, dismissible overlay; defaults to open on first load)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => {
@@ -296,6 +335,74 @@ export const App: React.FC = () => {
         </div>
 
         <div className="navbar-actions">
+          {/* Space Scoping Selector */}
+          <div className="space-selector-container" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>🪐 Space:</span>
+            <select
+              id="space-select"
+              value={currentSpaceId}
+              onChange={(e) => {
+                setCurrentSpaceId(e.target.value);
+                try {
+                  localStorage.setItem('ra1_active_space', e.target.value);
+                } catch {}
+              }}
+              style={{
+                background: 'rgba(15, 23, 42, 0.8)',
+                color: '#38bdf8',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                borderRadius: 6,
+                padding: '4px 8px',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <option value="space-default">Default Space</option>
+              <option value="space-finance">Finance Space</option>
+              <option value="space-devops">DevOps Space</option>
+            </select>
+          </div>
+
+          {/* User Auth Status / Sign In chip */}
+          {currentUser ? (
+            <button
+              type="button"
+              className="btn btn-active"
+              id="user-profile-chip"
+              onClick={() => setIsAuthOpen(true)}
+              title={`Logged in as ${currentUser.name} (${currentUser.teamId || 'Default'})`}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <span
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#38bdf8',
+                  color: '#0f172a',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {currentUser.name.charAt(0).toUpperCase()}
+              </span>
+              <span>{currentUser.name}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn"
+              id="open-auth-btn"
+              onClick={() => setIsAuthOpen(true)}
+              title="Sign in or create account"
+            >
+              <span>👤</span> Sign In
+            </button>
+          )}
+
           {/* Quickstart / Onboarding wizard toggle */}
           <button
             type="button"
@@ -452,9 +559,19 @@ export const App: React.FC = () => {
         onClose={() => setIsChatOpen(false)}
         onOpenPanel={handleOpenPanel}
         onCitationClick={handleCitationClick}
+        currentUser={currentUser}
+        currentSpaceId={currentSpaceId}
       />
 
       {/* Modals */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        currentUser={currentUser}
+        onClose={() => setIsAuthOpen(false)}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
+      />
+
       <CodeEditorModal
         node={editingNode}
         isOpen={Boolean(editingNode)}

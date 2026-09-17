@@ -1,12 +1,12 @@
-# Automated UI & Integration Test Suite Report — Complete Suite with ReAct Loop, Approvals & MCP
+# Automated UI & Integration Test Suite Report — Complete Suite with Authentication & Access Control
 
-**Project**: Rivet Canvas Foundation, OmniRoute Model Engine, Chat Surface, RAG Pipeline, Artifact Panels, Onboarding Wizard, AI Thinking Drawer, ReAct Agent Loop, "Ask Permission First" Approval Cards & MCP Wiring  
+**Project**: Rivet Canvas Foundation, OmniRoute Model Engine, Chat Surface, RAG Pipeline, Artifact Panels, Onboarding Wizard, AI Thinking Drawer, ReAct Agent Loop, "Ask Permission First" Approval Cards, MCP Wiring, Authentication, Session Governance & Multi-Tenant Access Control  
 **Test Framework**: Playwright (v1.48.0 / Chromium) & Node.js Built-In Test Runner (`tsx`)  
 **Execution Environment**: Local Development / CI Profile (Windows / 4-Core)  
-**Total Scenarios**: 73 (12 Canvas Foundation + 14 Model Engine + 23 Phase 3+4 Core + 5 Onboarding + 3 AI Thinking Drawer + 10 Agent Backend + 6 Agent Playwright)  
-**Passed**: 73 (100%)  
+**Total Scenarios**: 88 (12 Canvas Foundation + 14 Model Engine + 23 Phase 3+4 Core + 5 Onboarding + 3 AI Thinking Drawer + 10 Agent Backend + 6 Agent Playwright + 9 Auth Backend + 6 Auth Playwright)  
+**Passed**: 88 (100%)  
 **Failed**: 0  
-**Total Suite Duration**: ~1.8m (Playwright 49 tests: 1.8m, Backend 24 tests: 91.3ms)  
+**Total Suite Duration**: ~2.2m (Playwright 55 tests: 2.1m, Backend 33 tests: 783ms)  
 
 ---
 
@@ -151,117 +151,178 @@ For the visual node-canvas, chat orchestrator, and interactive approval flows, *
 
 ---
 
-## 7. Real vs. Mock Boundary Declarations
+## 7. Authentication, Session Governance & Multi-Tenant Access Control Suite (15 Tests)
+
+### 7.1 Backend Node.js Integration Tests (`authAccessControl.test.ts` — 9 Scenarios)
+
+**Test Runner**: Node.js Built-in Test Runner with `tsx` (`npm test` in `backend`)  
+**Status**: 9/9 PASS (100%)  
+**Execution Duration**: 128.9ms  
+
+| # | Test Scenario | Status | Duration | Mock vs. Real Classification | Assertion Highlights |
+|---|---|:---:|:---:|---|---|
+| **1** | Core Auth: signup, login, and logout work end-to-end with session tokens | **PASS** | 23.5ms | **100% Real Cryptographic Auth** | Registered user with PBKDF2-SHA512 + 16-byte salt; validated session bearer token; verified duplicate email rejected; logged out and verified immediate token invalidation (401); logged in with password. |
+| **2** | Unauthenticated request: missing, invalid, or expired session tokens are rejected | **PASS** | 0.7ms | **100% Real Session Validation** | Asserted `validateSession('')` and `validateSession('sess_nonexistent')` throw `UnauthorizedError` with clear error messages. |
+| **3** | OAuth2 / SSO: Google and GitHub logins provision accounts and dedicated keys | **PASS** | 1.2ms | **Real Strategy Pattern / Profile Normalization** | Simulated Google and GitHub OAuth token payloads; verified normalized profile creation, dedicated `VirtualKey` provisioning, and persistent idempotent re-login. |
+| **4** | Governance Isolation: Budget cap resolves per authenticated user, never shared globally | **PASS** | 24.5ms | **100% Real Governance Accounting** | User A ($0.0001 budget) exceeded budget cap and had subsequent requests blocked with `BudgetExceededError`. User B ($50.00 budget) executed turns concurrently with zero interference or cross-tenant degradation. |
+| **5** | Agent Scoping: Space-locked agent cannot be invoked outside its originating Space | **PASS** | 1.2ms | **100% Real Space Scoping** | Created Finance Space and Engineering Space; registered agent locked to Finance Space; verified invocation allowed inside Finance Space and strictly blocked in Engineering Space or global context. |
+| **6** | Agent Scoping: Globally-built agent respects creator Space-grant list | **PASS** | 0.5ms | **100% Real Multi-Tenant Scoping** | Registered global agent granted explicitly only to Space A; verified creator can execute anywhere, Space A member can execute, but Space B member is denied with `not granted access`. |
+| **7** | Space Permissions: Space owner controls which members can invoke agents | **PASS** | 0.5ms | **100% Real RBAC** | Space owner configured Developer (`canInvokeAgents: true`) and Guest (`canInvokeAgents: false`); verified Developer can execute and Guest is blocked; owner dynamically granted Guest permission and verified execution succeeded. |
+| **8** | Approval Authorization: An approval card can ONLY be resolved by its owning user | **PASS** | 69.3ms | **100% Real Authorization Perimeter** | Surfaced consequential action approval card on User A's thread; User B attempted to resolve approval and was rejected with `Forbidden: User "usr_intruder_bob" is not authorized`; User A resolved card and execution proceeded. |
+| **9** | Resource Privacy: User B cannot retrieve User A private documents or credentials | **PASS** | 5.0ms | **100% Real Tenant Vault & Vector Isolation** | Alice stored credential in connector vault and indexed confidential salary document in RAG vector store; verified Alice retrieves both; verified Bob cannot access Alice's credential and receives 0 chunks from vector search. |
+
+---
+
+### 7.2 Frontend Playwright End-to-End Tests (`auth.spec.ts` — 6 Scenarios)
+
+**Test Framework**: Playwright (v1.48.0 / Chromium)  
+**Status**: 6/6 PASS (100%)  
+**Execution Duration**: 19.5s  
+
+| # | Spec Suite | Test Scenario | Status | Duration | Mock vs. Real Classification | Assertion Highlights |
+|---|---|---|:---:|:---:|---|---|
+| **AU1** | `auth.spec.ts` | Sign In button opens AuthModal, and user can toggle tabs | **PASS** | 1.8s | **100% Real Browser DOM** | Clicked `#open-auth-btn`; modal dialog appeared with `#tab-login` and `#tab-signup`; verified input fields toggled cleanly; closed modal via `#close-auth-modal-btn`. |
+| **AU2** | `auth.spec.ts` | User signup creates account and navbar reflects user identity and avatar | **PASS** | 1.5s | **Real UI & Session Management** | Filled signup form with name, email, password; submitted form; modal closed and top navbar dynamically rendered `#user-profile-chip` with initial badge and user display name. |
+| **AU3** | `auth.spec.ts` | User profile dialog displays User ID, Team ID, Governance Virtual Key, and Sign Out works | **PASS** | 1.6s | **Real UI & Governance Binding** | Clicked user profile chip; modal displayed User ID (`usr_clara_101`), Team ID (`team-quantum`), and registered Governance Virtual Key (`vk_gov_99182`); clicked `#auth-logout-btn`; verified session cleared and navbar reverted to Sign In button. |
+| **AU4** | `auth.spec.ts` | OAuth2 SSO buttons (Google, GitHub) authenticate user | **PASS** | 1.5s | **Real UI & SSO Integration** | Clicked Google OAuth button; verified user profile chip initialized immediately with Google identity. |
+| **AU5** | `auth.spec.ts` | Space selector dropdown switches active Space and persists in localStorage | **PASS** | 1.6s | **Real UI & LocalStorage Persistence** | Changed `#space-select` dropdown from `space-default` to `space-finance`; verified localStorage updated; reloaded page and confirmed active Space persisted across browser reloads. |
+| **AU6** | `auth.spec.ts` | Authenticated user sends chat message with user session context | **PASS** | 2.1s | **Real UI, Session Context & Model Engine** | Authenticated via GitHub SSO; opened Chat panel; sent message; verified message bubble rendered with user identity and assistant response streamed successfully. |
+
+---
+
+## 8. Real vs. Mock Boundary Declarations
 
 To maintain absolute architectural transparency, every subsystem's execution boundary is disclosed below:
 
-1. **ReAct Agent Loop Orchestrator (`reactLoop.ts`, `chatService.ts`)**:
+1. **Authentication & Session Tokens (`authService.ts`)**:
+   - **100% Real**: Node.js `crypto.pbkdf2Sync` with SHA-512 and 16-byte cryptographically random salts across 10,000 iterations. Bearer tokens are cryptographically generated and validated with real time-based expirations.
+2. **Access Control & Space Scoping (`accessControl.ts`)**:
+   - **100% Real**: Space member RBAC checks, Space-locked agent isolation, global agent Space grant validation, and owner-only approval resolution enforcement run against live TypeScript engines.
+3. **ReAct Agent Loop Orchestrator (`reactLoop.ts`, `chatService.ts`)**:
    - **100% Real**: Think-Act-Observe state machine, tool resolution from unified registry, step counter bounds, error boundary handling, and async halting via held promises run against live TypeScript code.
-2. **"Ask Permission First" Approval System (`ApprovalCard.tsx`)**:
+4. **"Ask Permission First" Approval System (`ApprovalCard.tsx`)**:
    - **100% Real**: Consequential action classification, pending approval card DOM rendering, explicit execution blocking, interactive button clicks, and zero-side-effect abortion guarantees run against live browser DOM and orchestrator memory.
-3. **MCP Live Wiring (`mcpBridge.ts`)**:
+5. **MCP Live Wiring (`mcpBridge.ts`)**:
    - **Real Protocol & Schema**: Tool schema normalization, namespace separation (`mcp:*`), capability discovery, prompt template parsing, and argument passing are 100% functional.
    - **In-Memory Server**: For offline zero-setup testing, default MCP servers (`filesystem`, `github`) run via in-memory mock handlers rather than spawning external daemon OS processes.
-4. **Native Connectors (`email.ts`, `calendar.ts`, `search.ts`)**:
+6. **Native Connectors (`email.ts`, `calendar.ts`, `search.ts`)**:
    - **Real Contract & Data Handling**: Props validation, OAuth context abstraction, and structured output formatting are 100% real.
    - **Simulated Remote Transports**: Live SMTP internet connections and live Google OAuth redirection servers are simulated with local deterministic transmission confirmations when external API credentials are not provided.
-5. **AI Model Engine Execution (`ModelEngine.execute`)**:
+7. **AI Model Engine Execution (`ModelEngine.execute`)**:
    - **Real**: Routing paths, token accounting, governance limits, Markdown parsing (`marked`), KaTeX rendering (`katex`), and DOM sanitization (`DOMPurify`).
    - **Simulated Remote LLM**: Zero-setup local aggregator path executes deterministically when no remote OpenRouter key is configured.
 
 ---
 
-## 8. Full Verification Log & Commands
+## 9. Full Verification Log & Commands
 
 ```bash
-# 1. Run backend regression & agent loop test suite (24 scenarios)
+# 1. Run backend regression & auth test suite (33 scenarios)
 cd backend && npm test
 
 # Output:
 # ▶ ReAct Agent Loop & Human-In-The-Loop Approval Suite
-#   ✔ 1. Native Email connector: send_email is flagged consequential and list_emails is read-only (1.9237ms)
-#   ✔ 2. Native Calendar connector: create_event is consequential and list_events works (0.3693ms)
-#   ✔ 3. Native Web Search connector: web_search returns ranked search snippets (1.3882ms)
-#   ✔ 4. MCP Wiring: discoverMCPTools and executeMCPTool successfully bridge in-memory MCP servers (0.4076ms)
-#   ✔ 5. ReAct Loop: completes a multi-step task correctly (search then email) (2.2433ms)
-#   ✔ 6. ReAct Loop: terminates cleanly on bounded max-steps without infinite recursion (0.9036ms)
-#   ✔ 7. Approval Card: execution genuinely halts until user approval is resolved (44.5811ms)
-#   ✔ 8. Approval Card: Cancel cleanly aborts action with ZERO side effects (0.9845ms)
-#   ✔ 9. MCP Tool invocation mid-conversation via the ReAct agent loop (0.7141ms)
-#   ✔ 10. Direct chatService integration: approval card surfacing and resolution (35.5613ms)
-# ✔ ReAct Agent Loop & Human-In-The-Loop Approval Suite (91.3072ms)
+#   ✔ 1. Native Email connector: send_email is flagged consequential and list_emails is read-only (5.7094ms)
+#   ✔ 2. Native Calendar connector: create_event is consequential and list_events works (0.632ms)
+#   ✔ 3. Native Web Search connector: web_search returns ranked search snippets (1.2893ms)
+#   ✔ 4. MCP Wiring: discoverMCPTools and executeMCPTool successfully bridge in-memory MCP servers (0.6974ms)
+#   ✔ 5. ReAct Loop: completes a multi-step task correctly (search then email) (2.4509ms)
+#   ✔ 6. ReAct Loop: terminates cleanly on bounded max-steps without infinite recursion (0.5496ms)
+#   ✔ 7. Approval Card: execution genuinely halts until user approval is resolved (37.0436ms)
+#   ✔ 8. Approval Card: Cancel cleanly aborts action with ZERO side effects (0.6104ms)
+#   ✔ 9. MCP Tool invocation mid-conversation via the ReAct agent loop (0.8509ms)
+#   ✔ 10. Direct chatService integration: approval card surfacing and resolution (29.7821ms)
+# ✔ ReAct Agent Loop & Human-In-The-Loop Approval Suite (82.2738ms)
+# ▶ Authentication, Governance & Multi-Tenant Access Control Suite
+#   ✔ 1. Core Auth: signup, login, and logout work end-to-end with session tokens (23.4611ms)
+#   ✔ 2. Unauthenticated request: missing, invalid, or expired session tokens are rejected (0.6764ms)
+#   ✔ 3. OAuth2 / SSO: Google and GitHub logins provision accounts and dedicated keys (1.1551ms)
+#   ✔ 4. Governance Isolation: Budget cap resolves per authenticated user, never shared globally (24.5422ms)
+#   ✔ 5. Agent Scoping: Space-locked agent cannot be invoked outside its originating Space (1.2498ms)
+#   ✔ 6. Agent Scoping: Globally-built agent respects creator Space-grant list (0.4891ms)
+#   ✔ 7. Space Permissions: Space owner controls which members can invoke agents (0.5013ms)
+#   ✔ 8. Approval Authorization: An approval card can ONLY be resolved by its owning user (69.3041ms)
+#   ✔ 9. Resource Privacy: User B cannot retrieve User A private documents or credentials (4.9963ms)
+# ✔ Authentication, Governance & Multi-Tenant Access Control Suite (128.9536ms)
 # ▶ Model Engine & Governance Layer (Scenarios 1-14)
-#   ✔ 1. A request routes through pooled quota by default with no user key configured (4.0544ms)
-#   ✔ 2. A request falls back to BYOK when pooled quota is exhausted (0.7061ms)
-#   ✔ 3. A request falls back to BYOI when configured and applicable (0.5902ms)
-#   ✔ 4. Dropdown model selection works (0.495ms)
-#   ✔ 5. Search-in-dropdown filters correctly (0.4348ms)
-#   ✔ 6. Auto mode selects a model based on prompt content (4.5389ms)
-#   ✔ 7. Auto mode respects allow-list as priority, not hard cap (1.1434ms)
-#   ✔ 8. A denied model is never selected, including as a fallback (1.6921ms)
-#   ✔ 9. Notification fires (or doesn't) correctly per user's configured flagging preference (1.2251ms)
-#   ✔ 10. Virtual key issuance works per user (0.8469ms)
-#   ✔ 11. Budget cap blocks further requests once exceeded (1.1607ms)
-#   ✔ 12. Rate limit (RPM/TPM) is enforced (0.8779ms)
-#   ✔ 13. Aggregator path successfully completes a request end-to-end (0.2717ms)
-#   ✔ 14. Auto-fallback chain triggers correctly on a simulated provider failure (0.5221ms)
-# ✔ Model Engine & Governance Layer (Scenarios 1-14) (21.1169ms)
-# ℹ tests 24 | pass 24 | fail 0 | cancelled 0 | skipped 0 | todo 0 | duration_ms 1514.746
+#   ✔ 1. A request routes through pooled quota by default with no user key configured (5.6408ms)
+#   ✔ 2. A request falls back to BYOK when pooled quota is exhausted (0.6866ms)
+#   ✔ 3. A request falls back to BYOI when configured and applicable (0.4945ms)
+#   ✔ 4. Dropdown model selection works (0.4142ms)
+#   ✔ 5. Search-in-dropdown filters correctly (0.4436ms)
+#   ✔ 6. Auto mode selects a model based on prompt content (3.1963ms)
+#   ✔ 7. Auto mode respects allow-list as priority, not hard cap (selects outside list when justified) (1.1375ms)
+#   ✔ 8. A denied model is never selected, including as a fallback (3.021ms)
+#   ✔ 9. Notification fires (or doesn't) correctly per the user's configured flagging preference (1.2765ms)
+#   ✔ 10. Virtual key issuance works per user (0.9266ms)
+#   ✔ 11. Budget cap blocks further requests once exceeded (1.7635ms)
+#   ✔ 12. Rate limit (RPM/TPM) is enforced (0.8388ms)
+#   ✔ 13. Aggregator path successfully completes a request end-to-end (0.3586ms)
+#   ✔ 14. Auto-fallback chain triggers correctly on a simulated provider failure (0.6694ms)
+# ✔ Model Engine & Governance Layer (Scenarios 1-14) (23.3796ms)
+# ℹ tests 33 | pass 33 | fail 0 | cancelled 0 | skipped 0 | todo 0 | duration_ms 783.2633
 
-# 2. Run full Playwright test suite (49 scenarios)
+# 2. Run full Playwright test suite (55 scenarios)
 cd frontend && npx playwright test
 
 # Output:
-# Running 49 tests using 1 worker
-#   ok  1 [chromium] › tests\agent.spec.ts:18:3 › AG1. ReAct loop: completes multi-step task (5.0s)
-#   ok  2 [chromium] › tests\agent.spec.ts:51:3 › AG2. Approval Card genuinely halts execution (2.9s)
-#   ok  3 [chromium] › tests\agent.spec.ts:74:3 › AG3. Approval Card Cancel produces ZERO side effects (2.5s)
-#   ok  4 [chromium] › tests\agent.spec.ts:101:3 › AG4. Calendar connector: create_event surfaces approval (2.5s)
-#   ok  5 [chromium] › tests\agent.spec.ts:122:3 › AG5. MCP tool invocation displays in Thinking drawer (2.5s)
-#   ok  6 [chromium] › tests\agent.spec.ts:147:3 › AG6. Native Web Search connector executes (2.6s)
-#   ok  7 [chromium] › tests\canvas.spec.ts:10:3 › 1. Canvas loads without errors (1.6s)
-#   ok  8 [chromium] › tests\canvas.spec.ts:26:3 › 2. A node can be dragged onto the canvas (1.9s)
-#   ok  9 [chromium] › tests\canvas.spec.ts:49:3 › 3. Two nodes can be connected via a port-to-port wire (2.0s)
-#   ok 10 [chromium] › tests\canvas.spec.ts:84:3 › 4. A connection can be removed (1.6s)
-#   ok 11 [chromium] › tests\canvas.spec.ts:97:3 › 5. A node can be selected, moved, deleted (1.9s)
-#   ok 12 [chromium] › tests\canvas.spec.ts:127:3 › 6. Pan and zoom respond to input (2.0s)
-#   ok 13 [chromium] › tests\canvas.spec.ts:164:3 › 7. Opening a node reveals its editable code view (1.7s)
-#   ok 14 [chromium] › tests\canvas.spec.ts:195:3 › 8. A flow saves and reloads as valid YAML (1.8s)
-#   ok 15 [chromium] › tests\canvas.spec.ts:244:3 › 9. The debugging-bridge panel opens without crashing (1.8s)
-#   ok 16 [chromium] › tests\canvas.spec.ts:276:3 › 10. Opening any node's code view shows editable source (1.6s)
-#   ok 17 [chromium] › tests\canvas.spec.ts:303:3 › 11. Editing node code updates visual card without breaking connections (1.4s)
-#   ok 18 [chromium] › tests\canvas.spec.ts:353:3 › 12. Editing node code does not corrupt YAML export/import cycle (2.5s)
-#   ok 19 [chromium] › tests\chat.spec.ts:9:3 › C1. Chat panel opens and closes via button (1.9s)
-#   ok 20 [chromium] › tests\chat.spec.ts:31:3 › C2. User sends message -> assistant reply renders with markdown (2.1s)
-#   ok 21 [chromium] › tests\chat.spec.ts:51:3 › C3. Retry button re-sends preceding user message (2.3s)
-#   ok 22 [chromium] › tests\chat.spec.ts:72:3 › C4. Copy button copies message text to clipboard (2.5s)
-#   ok 23 [chromium] › tests\chat.spec.ts:93:3 › C5. Edit button re-populates input bar (2.5s)
-#   ok 24 [chromium] › tests\chat.spec.ts:112:3 › C6. Thumbs up/down rating records rating on message (2.3s)
-#   ok 25 [chromium] › tests\chat.spec.ts:129:3 › C7. File attach button accepts CSV/file (1.8s)
-#   ok 26 [chromium] › tests\chat.spec.ts:149:3 › C8. E2E: message dispatched through model engine with dropdown selection (2.1s)
-#   ok 27 [chromium] › tests\connectors.spec.ts:9:3 › K1. Connector category appears in palette with >=3 entries (1.4s)
-#   ok 28 [chromium] › tests\connectors.spec.ts:27:3 › K2. Adding piece:slack:send_message node onto canvas works (1.2s)
-#   ok 29 [chromium] › tests\connectors.spec.ts:45:3 › K3. Invoking piece:http:request connector executes action (2.0s)
-#   ok 30 [chromium] › tests\connectors.spec.ts:71:3 › K4. Connector node code view shows generated TypeScript source (1.7s)
-#   ok 31 [chromium] › tests\onboarding.spec.ts:13:3 › OB1. Onboarding overlay appears on first load (1.8s)
-#   ok 32 [chromium] › tests\onboarding.spec.ts:46:3 › OB2. 4-question wizard updates live preview pane in real time (3.2s)
-#   ok 33 [chromium] › tests\onboarding.spec.ts:142:3 › OB3. Completing onboarding persists preferences (2.7s)
-#   ok 34 [chromium] › tests\onboarding.spec.ts:190:3 › OB4. Skipping onboarding leaves defaults in place (2.1s)
-#   ok 35 [chromium] › tests\onboarding.spec.ts:207:3 › OB5. Re-opening setup guide via navbar button restores wizard (2.0s)
-#   ok 36 [chromium] › tests\panels.spec.ts:9:3 › P1. Document editor panel opens via navbar button (1.4s)
-#   ok 37 [chromium] › tests\panels.spec.ts:24:3 › P2. TipTap editor accepts typing and toolbar formatting (1.9s)
-#   ok 38 [chromium] › tests\panels.spec.ts:46:3 › P3. Export PDF triggers browser print dialog (1.7s)
-#   ok 39 [chromium] › tests\panels.spec.ts:65:3 › P4. Export Word triggers .docx file generation (2.0s)
-#   ok 40 [chromium] › tests\panels.spec.ts:84:3 › P5. Sandbox panel opens with code editor and preview (1.7s)
-#   ok 41 [chromium] › tests\panels.spec.ts:98:3 › P6. Sandbox panel switches templates (2.3s)
-#   ok 42 [chromium] › tests\panels.spec.ts:115:3 › P7. Data table panel renders uploaded CSV (1.9s)
-#   ok 43 [chromium] › tests\panels.spec.ts:141:3 › P8. Bar chart renders from table data via Chart.js (1.8s)
-#   ok 44 [chromium] › tests\rag.spec.ts:9:3 › R1. Document upload -> indexed badge appears (2.4s)
-#   ok 45 [chromium] › tests\rag.spec.ts:40:3 › R2. User message with uploaded doc -> citation badges appear (2.3s)
-#   ok 46 [chromium] › tests\rag.spec.ts:74:3 › R3. Clicking citation badge opens PDF viewer panel (2.2s)
-#   ok 47 [chromium] › tests\thinking.spec.ts:13:3 › TK1. Thinking drawer appears above assistant response (1.9s)
-#   ok 48 [chromium] › tests\thinking.spec.ts:42:3 › TK2. Thinking drawer expands and collapses cleanly (2.3s)
-#   ok 49 [chromium] › tests\thinking.spec.ts:70:3 › TK3. Thinking drawer reflects real retrieval data from RAG (2.6s)
+# Running 55 tests using 1 worker
+#   ok  1 [chromium] › tests\agent.spec.ts:18:3 › AG1. ReAct loop: completes multi-step task (6.2s)
+#   ok  2 [chromium] › tests\agent.spec.ts:51:3 › AG2. Approval Card genuinely halts execution (2.6s)
+#   ok  3 [chromium] › tests\agent.spec.ts:74:3 › AG3. Approval Card Cancel cleanly aborts action (2.7s)
+#   ok  4 [chromium] › tests\agent.spec.ts:101:3 › AG4. Calendar connector: create_event surfaces approval (2.4s)
+#   ok  5 [chromium] › tests\agent.spec.ts:122:3 › AG5. MCP tool invocation mid-conversation (2.6s)
+#   ok  6 [chromium] › tests\agent.spec.ts:147:3 › AG6. Native Web Search connector executes (2.7s)
+#   ok  7 [chromium] › tests\auth.spec.ts:15:3 › AU1. Sign In button opens AuthModal (1.8s)
+#   ok  8 [chromium] › tests\auth.spec.ts:40:3 › AU2. User signup creates account and navbar reflects identity (1.5s)
+#   ok  9 [chromium] › tests\auth.spec.ts:59:3 › AU3. User profile dialog displays Virtual Key and Sign Out works (1.6s)
+#   ok 10 [chromium] › tests\auth.spec.ts:95:3 › AU4. OAuth2 SSO buttons (Google, GitHub) authenticate user (1.5s)
+#   ok 11 [chromium] › tests\auth.spec.ts:109:3 › AU5. Space selector switches Space and persists in localStorage (1.6s)
+#   ok 12 [chromium] › tests\auth.spec.ts:127:3 › AU6. Authenticated user sends chat message with session context (2.1s)
+#   ok 13 [chromium] › tests\canvas.spec.ts:10:3 › 1. Canvas loads without errors (1.7s)
+#   ok 14 [chromium] › tests\canvas.spec.ts:26:3 › 2. A node can be dragged onto the canvas (1.9s)
+#   ok 15 [chromium] › tests\canvas.spec.ts:49:3 › 3. Two nodes can be connected via a port-to-port wire (1.9s)
+#   ok 16 [chromium] › tests\canvas.spec.ts:84:3 › 4. A connection can be removed (1.7s)
+#   ok 17 [chromium] › tests\canvas.spec.ts:97:3 › 5. A node can be selected, moved, deleted (2.0s)
+#   ok 18 [chromium] › tests\canvas.spec.ts:127:3 › 6. Pan and zoom respond to input (1.6s)
+#   ok 19 [chromium] › tests\canvas.spec.ts:164:3 › 7. Opening a node reveals its editable code view (2.1s)
+#   ok 20 [chromium] › tests\canvas.spec.ts:195:3 › 8. A flow saves and reloads as valid YAML (2.0s)
+#   ok 21 [chromium] › tests\canvas.spec.ts:244:3 › 9. The debugging-bridge panel opens without crashing (1.7s)
+#   ok 22 [chromium] › tests\canvas.spec.ts:276:3 › 10. Opening any node's code view shows editable source (1.9s)
+#   ok 23 [chromium] › tests\canvas.spec.ts:303:3 › 11. Editing node code updates visual representation (1.8s)
+#   ok 24 [chromium] › tests\canvas.spec.ts:353:3 › 12. Editing node code does not corrupt YAML export/import cycle (2.4s)
+#   ok 25 [chromium] › tests\chat.spec.ts:9:3 › C1. Chat panel opens and closes via button (1.8s)
+#   ok 26 [chromium] › tests\chat.spec.ts:31:3 › C2. User sends message -> assistant reply renders with markdown (2.2s)
+#   ok 27 [chromium] › tests\chat.spec.ts:51:3 › C3. Retry button re-sends preceding user message (2.4s)
+#   ok 28 [chromium] › tests\chat.spec.ts:72:3 › C4. Copy button copies message text to clipboard (2.6s)
+#   ok 29 [chromium] › tests\chat.spec.ts:93:3 › C5. Edit button re-populates input bar (2.1s)
+#   ok 30 [chromium] › tests\chat.spec.ts:112:3 › C6. Thumbs up/down rating records rating on message (2.0s)
+#   ok 31 [chromium] › tests\chat.spec.ts:129:3 › C7. File attach button accepts CSV/file (1.9s)
+#   ok 32 [chromium] › tests\chat.spec.ts:149:3 › C8. E2E: message dispatched through model engine with dropdown selection (2.1s)
+#   ok 33 [chromium] › tests\connectors.spec.ts:9:3 › K1. Connector category appears in palette with >=3 entries (1.5s)
+#   ok 34 [chromium] › tests\connectors.spec.ts:27:3 › K2. Adding piece:slack:send_message node onto canvas works (1.9s)
+#   ok 35 [chromium] › tests\connectors.spec.ts:45:3 › K3. Invoking piece:http:request connector executes action (3.0s)
+#   ok 36 [chromium] › tests\connectors.spec.ts:71:3 › K4. Connector node code view shows generated TypeScript source (1.9s)
+#   ok 37 [chromium] › tests\onboarding.spec.ts:13:3 › OB1. Onboarding overlay appears on first load (1.9s)
+#   ok 38 [chromium] › tests\onboarding.spec.ts:46:3 › OB2. 4-question wizard updates live preview pane in real time (3.1s)
+#   ok 39 [chromium] › tests\onboarding.spec.ts:142:3 › OB3. Completing onboarding persists preferences (2.9s)
+#   ok 40 [chromium] › tests\onboarding.spec.ts:190:3 › OB4. Skipping onboarding leaves all defaults in place (2.1s)
+#   ok 41 [chromium] › tests\onboarding.spec.ts:207:3 › OB5. Re-opening setup guide via navbar button restores wizard (1.9s)
+#   ok 42 [chromium] › tests\panels.spec.ts:9:3 › P1. Document editor panel opens via navbar button (1.8s)
+#   ok 43 [chromium] › tests\panels.spec.ts:24:3 › P2. TipTap editor accepts typing and toolbar formatting (1.9s)
+#   ok 44 [chromium] › tests\panels.spec.ts:46:3 › P3. Export PDF triggers browser print dialog (1.7s)
+#   ok 45 [chromium] › tests\panels.spec.ts:65:3 › P4. Export Word triggers .docx file generation (2.2s)
+#   ok 46 [chromium] › tests\panels.spec.ts:84:3 › P5. Sandbox panel opens with code editor and preview (1.8s)
+#   ok 47 [chromium] › tests\panels.spec.ts:98:3 › P6. Sandbox panel switches templates (2.2s)
+#   ok 48 [chromium] › tests\panels.spec.ts:115:3 › P7. Data table panel renders uploaded CSV (1.9s)
+#   ok 49 [chromium] › tests\panels.spec.ts:141:3 › P8. Bar chart renders from table data via Chart.js (1.8s)
+#   ok 50 [chromium] › tests\rag.spec.ts:9:3 › R1. Document upload -> indexed badge appears (2.2s)
+#   ok 51 [chromium] › tests\rag.spec.ts:40:3 › R2. User message with uploaded doc -> citation badges appear (2.3s)
+#   ok 52 [chromium] › tests\rag.spec.ts:74:3 › R3. Clicking citation badge opens PDF viewer panel (2.6s)
+#   ok 53 [chromium] › tests\thinking.spec.ts:13:3 › TK1. Thinking drawer appears above assistant response (2.0s)
+#   ok 54 [chromium] › tests\thinking.spec.ts:42:3 › TK2. Thinking drawer expands and collapses cleanly (2.5s)
+#   ok 55 [chromium] › tests\thinking.spec.ts:70:3 › TK3. Thinking drawer reflects real retrieval data from RAG (2.7s)
 # 
-# 49 passed (1.8m)
+# 55 passed (2.1m)
 ```
+

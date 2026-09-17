@@ -11,6 +11,8 @@ export interface Chunk {
   sourceFile: string;
   pageNumber?: number;
   charOffset: number;
+  userId?: string;
+  spaceId?: string;
 }
 
 /**

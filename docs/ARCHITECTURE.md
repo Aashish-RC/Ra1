@@ -10,6 +10,7 @@ This document is the single authoritative reference for Ra1's node contract, mod
 5. [Merged Built-In Nodes Catalog](#section-5-merged-built-in-nodes-catalog--file-reconciliation)
 6. [Onboarding Flow & AI Thinking Drawer Architecture](#section-6-onboarding-flow--ai-thinking-drawer-architecture)
 7. [ReAct Agent Loop, "Ask Permission First" Approval Card & MCP Wiring Architecture](#section-7-react-agent-loop-ask-permission-first-approval-card--mcp-wiring-architecture)
+8. [Authentication, Session Governance & Multi-Tenant Access Control Architecture](#section-8-authentication-session-governance--multi-tenant-access-control-architecture)
 
 ---
 
@@ -1026,5 +1027,138 @@ An action is classified as consequential if:
 | `frontend/src/components/chat/ChatPanel.tsx` | Panel wiring approval state synchronization and resolution handlers. |
 | `backend/tests/agentLoop.test.ts` | 10 Node.js unit & integration tests for ReAct, approvals, cancel safety, MCP, and native connectors. |
 | `frontend/tests/agent.spec.ts` | 6 Playwright E2E tests validating multi-step tasks, approval halts, cancel safety, MCP, and connectors. |
+
+---
+
+## Section 8: Authentication, Session Governance & Multi-Tenant Access Control Architecture
+
+### 8.1 Motivation & Threat Model
+
+Before introducing autonomous computer-use and browser-acting agents capable of mutating external systems, real authentication and fine-grained access control are hard prerequisites. Without an authenticated identity and authorization perimeter:
+1. Consequential tool execution (sending external emails, updating calendars, triggering webhooks, executing shell commands) could be dispatched anonymously.
+2. Approval cards could be resolved or dismissed by unprivileged spectators.
+3. Multi-tenant resources (threads, uploaded RAG chunks, connector API credentials) would leak across user and team boundaries.
+4. Governance policies (virtual keys, budget limits, RPM/TPM rate limits) would be shared globally or bypassed completely.
+
+Section 8 establishes a cryptographically secure, multi-tenant authentication and access control layer modeled after LibreChat's modular strategy architecture (MIT License).
+
+---
+
+### 8.2 Core Authentication Architecture (`backend/auth/`)
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Authentication Service                          │
+├────────────────────────────────┬───────────────────────────────────────┤
+│    Local Password Strategy     │        OAuth2 / SSO Strategies        │
+│  (PBKDF2-SHA512 + Salt, 10k)   │  (Google, GitHub, OpenID Connect)     │
+├────────────────────────────────┴───────────────────────────────────────┤
+│                       Pluggable Registry Bridge                        │
+│             (Extensibility hooks for SAML 2.0, LDAP, 2FA)              │
+├────────────────────────────────────────────────────────────────────────┤
+│                       Session Token Management                         │
+│               (Cryptographic 256-bit bearer tokens)                    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│              Governance Binding (`ModelEngine` Integration)            │
+│  - Auto-provisions dedicated VirtualKey on registration/SSO            │
+│  - Initializes per-user budget ceiling & lifetime spend tracker        │
+│  - Binds rate limits (RPM / TPM) strictly to authenticated identity    │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 8.2.1 Password Hashing & Local Strategy
+Local authentication uses Node's standard `crypto.pbkdf2Sync` with SHA-512 and a unique 16-byte cryptographic salt per user across 10,000 iterations. Passwords require a minimum length of 6 characters and are never persisted in plaintext.
+
+#### 8.2.2 OAuth2 & Extensible SSO Strategy Registry (`oauthStrategies.ts`)
+SSO providers conform to the `OAuthStrategy` interface:
+```typescript
+export interface OAuthStrategy {
+  provider: AuthProvider;
+  authenticate(credentials: {
+    codeOrToken: string;
+    clientProfile?: Partial<OAuthProfile>;
+  }): Promise<OAuthProfile>;
+}
+```
+- **Google OAuth**: Normalizes Google sub, verified email, and profile avatar.
+- **GitHub OAuth**: Normalizes GitHub user ID, email, and handle.
+- **Enterprise Extensibility**: The `OAuthStrategyRegistry` exposes `registerSAML(config)` and `registerLDAP(config)` entry points, allowing enterprise identity providers and 2FA second-factor challenges to be attached without refactoring the core authentication pipeline.
+
+#### 8.2.3 Session Management
+Session tokens are generated as 32-character high-entropy bearer strings with a 24-hour expiration window. Calling `logout(token)` invalidates the session immediately. `validateSession(token)` ensures unauthenticated or expired tokens are rejected with a 401 Unauthorized exception.
+
+---
+
+### 8.3 Governance Binding: Virtual Keys & Per-User Budgets
+
+In Ra1, authentication and governance are inextricably linked:
+1. **Auto-Provisioning**: When a user registers (via local signup or OAuth SSO), `AuthService` immediately calls `ModelEngine.issueVirtualKey({ userId, teamId, name, rateLimitRPM: 60, maxSpendUSD: 10.0 })`.
+2. **Identity-Bound Execution**: When dispatching chat turns through `sendMessage()` or directly to `ModelEngine.execute()`, the authenticated `userContext: { userId, teamId }` and `virtualKey` are passed explicitly.
+3. **Strict Partitioning**: Rate limits and budget caps resolve per authenticated `userId`. If User A depletes their budget cap, User A is blocked while User B continues executing with zero interference or cross-tenant degradation.
+
+---
+
+### 8.4 Multi-Tenant Access Control & Agent Scoping (`accessControl.ts`)
+
+```
+                           ┌─────────────────┐
+                           │      User       │
+                           └────────┬────────┘
+                                    │ Member of
+                                    ▼
+                           ┌─────────────────┐
+                           │      Space      │
+                           │  - Owner        │
+                           │  - Members      │
+                           │  - canInvoke    │
+                           └────────┬────────┘
+                                    │
+               ┌────────────────────┴────────────────────┐
+               ▼                                         ▼
+      ┌──────────────────┐                      ┌──────────────────┐
+      │Space-Locked Agent│                      │   Global Agent   │
+      │(Locked to Space) │                      │(Cross-Space via  │
+      │                  │                      │ explicit grants) │
+      └──────────────────┘                      └──────────────────┘
+```
+
+#### 8.4.1 Space Scoping Rules
+1. **Space-Locked Agents**: An agent created inside a specific Space (`agent.spaceId`) is permanently locked to that Space. Attempts to invoke it from any other Space or outside the Space context are rejected.
+2. **Globally-Built Agents**: An agent created globally (`agent.isGlobal = true`) can only be invoked cross-Space if the agent's creator has explicitly added the target Space ID to `agent.grantedSpaceIds`. The creator retains unrestricted invocation rights.
+3. **Space Owner Control**: The owner of a Space has exclusive authority to add/remove members and toggle the `canInvokeAgents` boolean permission. Members lacking this permission are prevented from executing any agents present in that Space.
+
+#### 8.4.2 Resource Ownership & Isolation
+- **Chats & Threads**: Every `Thread` records `userId` and `spaceId`. Non-owners cannot read, append messages to, or tamper with another user's threads.
+- **RAG Chunks & Retrieval**: Documents indexed in `vectorStore` store `userId` and `spaceId` metadata. Similarity queries pass tenant filters (`{ userId, spaceId }`), guaranteeing that User B never retrieves citations from User A's private documents.
+- **Connector Credentials**: External API keys and OAuth tokens configured by a user are stored in private vaults accessible only by that specific `userId`.
+
+#### 8.4.3 Approval Card Ownership Guarantee
+Approval cards generated during ReAct agent loops for consequential actions (email dispatch, calendar creation, data mutation) strictly enforce owner authorization. `resolveApproval(thread, approvalId, decision, resolvingUserId)` verifies:
+$$\text{resolvingUserId} = \text{thread.userId}$$
+If any other authenticated user attempts to approve or cancel the action, execution throws `ForbiddenError` and the action remains securely paused.
+
+---
+
+### 8.5 File Inventory
+
+| File / Component | Responsibility |
+|---|---|
+| `backend/auth/types.ts` | Core types for `User`, `UserSession`, `AuthResult`, `Space`, `SpaceMember`, and `AgentScopedDefinition`. |
+| `backend/auth/authService.ts` | User signup, PBKDF2 password hashing, session tokens, login/logout, and virtual-key auto-provisioning. |
+| `backend/auth/oauthStrategies.ts` | Strategy registry with Google and GitHub OAuth adapters, plus LDAP/SAML extensibility interfaces. |
+| `backend/auth/accessControl.ts` | Space creation, member management, agent scoping validation (`canInvokeAgent`), and credential privacy. |
+| `backend/chat/chatService.ts` | Multi-tenant thread scoping, user context propagation into `ModelEngine`, and owner-only approval resolution. |
+| `backend/rag/chunker.ts` | Added `userId` and `spaceId` fields to document chunk metadata. |
+| `backend/rag/vectorStore.ts` | Multi-tenant vector similarity querying with tenant scoping filters. |
+| `backend/rag/retriever.ts` | Pass-through user and Space tenant filters during semantic citation retrieval. |
+| `frontend/src/components/auth/AuthModal.tsx` | UI modal for email/password signup, login, Google/GitHub OAuth, and governance profile inspector. |
+| `frontend/src/App.tsx` | Top navbar Space selector, user profile chip, auth modal trigger, and chat session binding. |
+| `frontend/src/components/chat/ChatPanel.tsx` | Scoped thread creation, user context forwarding, and owner-checked approval resolution. |
+| `backend/tests/authAccessControl.test.ts` | 9 comprehensive Node.js tests covering auth lifecycle, governance isolation, agent scoping, and privacy. |
+| `frontend/tests/auth.spec.ts` | 6 Playwright E2E tests validating login/signup, OAuth buttons, Space switching, and user-scoped chat. |
+
 
 

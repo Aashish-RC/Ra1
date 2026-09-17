@@ -55,13 +55,26 @@ class VectorStore {
    * Retrieve topK most similar chunks via brute-force cosine similarity.
    * @param queryVector Embedding vector for the user query
    * @param topK        Maximum results to return (default 5)
+   * @param filter      Optional tenant filter by userId or spaceId
    */
-  query(queryVector: number[], topK = 5): ScoredChunk[] {
+  query(
+    queryVector: number[],
+    topK = 5,
+    filter?: { userId?: string; spaceId?: string }
+  ): ScoredChunk[] {
     if (this.store.size === 0) return [];
 
     const results: ScoredChunk[] = [];
 
     for (const chunk of this.store.values()) {
+      // If user filtering is active, restrict access to own documents (or public unassigned docs)
+      if (filter?.userId && chunk.userId && chunk.userId !== filter.userId) {
+        continue;
+      }
+      if (filter?.spaceId && chunk.spaceId && chunk.spaceId !== filter.spaceId) {
+        continue;
+      }
+
       const score = cosineSimilarity(queryVector, chunk.vector);
       results.push({ chunk, score });
     }

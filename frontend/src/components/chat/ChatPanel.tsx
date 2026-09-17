@@ -23,11 +23,15 @@ const MODEL_OPTIONS = [
   { value: 'mistralai/mistral-large', label: 'Mistral Large' },
 ];
 
+import type { AuthUserProfile } from '../auth/AuthModal.js';
+
 export interface ChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPanel: (type: 'editor' | 'sandbox' | 'table' | 'pdf', payload?: unknown) => void;
   onCitationClick: (citation: Citation) => void;
+  currentUser?: AuthUserProfile | null;
+  currentSpaceId?: string;
 }
 
 /**
@@ -42,6 +46,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onClose,
   onOpenPanel,
   onCitationClick,
+  currentUser,
+  currentSpaceId,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -55,13 +61,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const threadRef = useRef<Thread | null>(null);
 
-  // Lazy-init thread
+  // Lazy-init thread with authenticated user and space scoping
   const getThread = useCallback(() => {
     if (!threadRef.current) {
-      threadRef.current = createThread(selectedModel || undefined);
+      threadRef.current = createThread(
+        selectedModel || undefined,
+        currentUser?.id,
+        currentSpaceId
+      );
     }
     return threadRef.current;
-  }, [selectedModel]);
+  }, [selectedModel, currentUser?.id, currentSpaceId]);
 
   const showNotification = useCallback((msg: string) => {
     setNotification(msg);
@@ -77,8 +87,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     try {
       const thread = getThread();
 
-      // Retrieve RAG context if documents are indexed
-      const citations = indexedSources.length > 0 ? await retrieve(content) : [];
+      // Retrieve RAG context if documents are indexed (scoped to current user/space)
+      const citations = indexedSources.length > 0
+        ? await retrieve(content, 5, { userId: currentUser?.id, spaceId: currentSpaceId })
+        : [];
+
+      const userContext = currentUser
+        ? { userId: currentUser.id, teamId: currentUser.teamId, virtualKey: currentUser.virtualKey }
+        : undefined;
 
       const response = await sendMessage(
         thread,
@@ -88,7 +104,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         () => {
           // Immediately sync thread so approval card renders while execution halts
           setMessages([...thread.messages]);
-        }
+        },
+        userContext
       );
 
       // Sync thread messages to local state
@@ -104,13 +121,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     } finally {
       setIsSending(false);
     }
-  }, [inputValue, isSending, getThread, indexedSources]);
+  }, [inputValue, isSending, getThread, indexedSources, currentUser, currentSpaceId]);
 
   const handleResolveApproval = useCallback((approvalId: string, decision: 'approved' | 'cancelled') => {
-    const thread = getThread();
-    resolveApproval(thread, approvalId, decision);
-    setMessages([...thread.messages]);
-  }, [getThread]);
+    try {
+      const thread = getThread();
+      resolveApproval(thread, approvalId, decision, currentUser?.id);
+      setMessages([...thread.messages]);
+    } catch (err: any) {
+      showNotification(err.message || 'Approval authorization rejected');
+    }
+  }, [getThread, currentUser?.id, showNotification]);
 
   const handleEdit = useCallback((message: ChatMessage) => {
     setInputValue(message.content);

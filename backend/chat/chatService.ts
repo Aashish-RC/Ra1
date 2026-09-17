@@ -44,6 +44,8 @@ export interface Citation {
 
 export interface Thread {
   id: string;
+  userId?: string;
+  spaceId?: string;
   messages: ChatMessage[];
   model?: string; // explicit model override (dropdown)
   pendingApproval?: {
@@ -55,9 +57,11 @@ export interface Thread {
 // Singleton engine instance shared across all threads
 const engine = new ModelEngine();
 
-export function createThread(modelOverride?: string): Thread {
+export function createThread(modelOverride?: string, userId?: string, spaceId?: string): Thread {
   return {
     id: `thread-${nanoid(8)}`,
+    userId,
+    spaceId,
     messages: [],
     model: modelOverride,
     pendingApproval: null,
@@ -66,13 +70,21 @@ export function createThread(modelOverride?: string): Thread {
 
 /**
  * Resolve a pending approval card for consequential actions.
- * Resumes execution in the halted ReAct loop.
+ * Enforces ownership: only the user who owns that conversation/session can resolve it.
  */
 export function resolveApproval(
   thread: Thread,
   approvalId: string,
-  decision: 'approved' | 'cancelled'
+  decision: 'approved' | 'cancelled',
+  resolvingUserId?: string
 ): boolean {
+  // Access control check: an approval must only be resolvable by the owning user
+  if (thread.userId && resolvingUserId && resolvingUserId !== thread.userId) {
+    throw new Error(
+      `Forbidden: User "${resolvingUserId}" is not authorized to resolve approvals on thread owned by "${thread.userId}"`
+    );
+  }
+
   if (thread.pendingApproval && thread.pendingApproval.approvalId === approvalId) {
     const resolver = thread.pendingApproval.resolve;
     thread.pendingApproval = null;
@@ -99,7 +111,8 @@ export async function sendMessage(
   userContent: string,
   attachments?: MultimodalAttachment[],
   citations?: Citation[],
-  onApprovalRequired?: (approval: ApprovalRequest) => void
+  onApprovalRequired?: (approval: ApprovalRequest) => void,
+  userContext?: { userId?: string; teamId?: string; virtualKey?: string }
 ): Promise<ChatMessage> {
   // Append user message to thread
   const userMsg: ChatMessage = {
@@ -110,6 +123,10 @@ export async function sendMessage(
     timestamp: Date.now(),
   };
   thread.messages.push(userMsg);
+
+  const effectiveUserId = userContext?.userId || thread.userId;
+  const effectiveTeamId = userContext?.teamId;
+  const effectiveVirtualKey = userContext?.virtualKey;
 
   // 1. ReAct Agent Loop: Engage when task mentions tools, email, calendar, search, files, or multi-step execution
   if (shouldEngageAgent(userContent)) {
@@ -175,6 +192,8 @@ export async function sendMessage(
     messages: engineMessages,
     selectionMode: thread.model ? 'dropdown' : 'auto',
     model: thread.model,
+    virtualKey: effectiveVirtualKey,
+    userContext: effectiveUserId ? { userId: effectiveUserId, teamId: effectiveTeamId } : undefined,
   });
 
   const assistantMsg: ChatMessage = {

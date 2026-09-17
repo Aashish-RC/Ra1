@@ -11,7 +11,11 @@ import type { Citation } from '../chat/chatService.js';
  * Retrieve topK most relevant chunks for a given query string.
  * Returns empty array if vector store is empty.
  */
-export async function retrieve(query: string, topK = 5): Promise<Citation[]> {
+export async function retrieve(
+  query: string,
+  topK = 5,
+  filter?: { userId?: string; spaceId?: string }
+): Promise<Citation[]> {
   if (vectorStore.size === 0) return [];
 
   // Embed the query using the same embedder (real or stub)
@@ -24,7 +28,7 @@ export async function retrieve(query: string, topK = 5): Promise<Citation[]> {
     },
   ]);
 
-  const scored = vectorStore.query(queryEmbedded.vector, topK);
+  const scored = vectorStore.query(queryEmbedded.vector, topK, filter);
 
   return scored.map((s, i) => ({
     index: i + 1,
