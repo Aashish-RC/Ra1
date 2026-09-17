@@ -272,4 +272,146 @@ connections: []
     await closeBtn.click();
     await expect(modal).not.toBeVisible();
   });
+
+  test("10. Opening any node's code view shows editable source", async ({ page }) => {
+    // Target text node (node-init-1) - confirming universal editable code beyond code nodes
+    const textNode = page.locator('#node-node-init-1');
+    await expect(textNode).toBeVisible();
+
+    const codeBtn = textNode.locator('.edit-code-btn');
+    await expect(codeBtn).toBeVisible();
+    await codeBtn.click();
+
+    // Verify modal and generated source
+    const modal = page.locator('#code-editor-modal');
+    await expect(modal).toBeVisible();
+
+    const textarea = page.locator('#code-editor-textarea');
+    await expect(textarea).toBeVisible();
+
+    const source = await textarea.inputValue();
+    expect(source).toContain('@title Input Prompt Text');
+    expect(source).toContain('export const NodeDefinition');
+    expect(source).toContain('type: "text"');
+    expect(source).toContain('async process');
+
+    // Close modal
+    await page.locator('#code-editor-close').click();
+    await expect(modal).not.toBeVisible();
+  });
+
+  test("11. Editing a node's code and saving updates the node's visual representation on canvas without breaking existing connections", async ({ page }) => {
+    // Verify initial wire from node-init-1 to node-init-2 exists
+    const wires = page.locator('.wire-group');
+    await expect(wires).toHaveCount(1);
+
+    const textNode = page.locator('#node-node-init-1');
+    await expect(textNode).toBeVisible();
+    await expect(textNode.locator('.node-title')).toHaveText('Input Prompt Text');
+
+    // Open code view
+    await textNode.locator('.edit-code-btn').click();
+    const modal = page.locator('#code-editor-modal');
+    await expect(modal).toBeVisible();
+
+    const textarea = page.locator('#code-editor-textarea');
+    const updatedSource = `/**
+ * @title Custom Text Processor
+ * @type text
+ */
+export const NodeDefinition = {
+  type: "text",
+  title: "Custom Text Processor",
+  async process(inputs) {
+    return { output: "Transformed Live Data" };
+  }
+};
+export default NodeDefinition;`;
+
+    await textarea.fill(updatedSource);
+
+    // Save changes
+    await page.locator('#code-editor-save').click();
+    await expect(modal).not.toBeVisible();
+
+    // Verify visual update: title changed to "Custom Text Processor"
+    await expect(textNode.locator('.node-title')).toHaveText('Custom Text Processor');
+
+    // Verify preview snippet updated
+    const preview = textNode.locator('.node-preview-box');
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText('NodeDefinition');
+
+    // Verify connections are preserved without breakage
+    await expect(wires).toHaveCount(1);
+    const wirePath = wires.first().locator('path.wire-path');
+    const pathD = await wirePath.getAttribute('d');
+    expect(pathD).toBeTruthy();
+    expect(pathD).toContain('M');
+  });
+
+  test("12. Editing a node's code does not corrupt the YAML export/import cycle", async ({ page }) => {
+    // First edit node-init-1's code
+    const textNode = page.locator('#node-node-init-1');
+    await textNode.locator('.edit-code-btn').click();
+
+    const modal = page.locator('#code-editor-modal');
+    await expect(modal).toBeVisible();
+
+    const customScript = `/**
+ * @title Persisted Custom Node
+ * @type text
+ */
+export default {
+  type: "text",
+  title: "Persisted Custom Node",
+  value: "Langflow Pattern Verified"
+};`;
+
+    await page.locator('#code-editor-textarea').fill(customScript);
+    await page.locator('#code-editor-save').click();
+    await expect(modal).not.toBeVisible();
+
+    // Open YAML modal
+    const yamlBtn = page.locator('#yaml-flow-button');
+    await yamlBtn.click();
+
+    const yamlModal = page.locator('#yaml-modal');
+    await expect(yamlModal).toBeVisible();
+
+    const textarea = page.locator('#yaml-textarea');
+    await expect(textarea).toBeVisible();
+    const exportedYaml = await textarea.inputValue();
+
+    // Verify customCode and updated title are present in YAML
+    expect(exportedYaml).toContain('customCode:');
+    expect(exportedYaml).toContain('Persisted Custom Node');
+    expect(exportedYaml).toContain('Langflow Pattern Verified');
+
+    // Now test round-trip import
+    const importTab = page.locator('#yaml-tab-import');
+    await importTab.click();
+
+    // Paste the exported YAML into textarea
+    await textarea.fill(exportedYaml);
+
+    // Re-apply the exported YAML
+    await page.locator('#yaml-apply-import-btn').click();
+    await expect(yamlModal).not.toBeVisible();
+
+    // Confirm node retains persisted state on canvas
+    const reloadedNode = page.locator('#node-node-init-1');
+    await expect(reloadedNode).toBeVisible();
+    await expect(reloadedNode.locator('.node-title')).toHaveText('Persisted Custom Node');
+
+    // Reopen code editor and verify customCode was fully restored
+    await reloadedNode.locator('.edit-code-btn').click();
+    await expect(modal).toBeVisible();
+    const loadedCode = await page.locator('#code-editor-textarea').inputValue();
+    expect(loadedCode).toContain('Persisted Custom Node');
+    expect(loadedCode).toContain('Langflow Pattern Verified');
+
+    await page.locator('#code-editor-close').click();
+    await expect(modal).not.toBeVisible();
+  });
 });
