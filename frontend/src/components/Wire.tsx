@@ -32,8 +32,9 @@ export const Wire: React.FC<WireProps> = ({
         fill="none"
         stroke="transparent"
         strokeWidth="24"
-        style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+        style={{ pointerEvents: isInProgress ? 'none' : 'auto', cursor: isInProgress ? 'default' : 'pointer' }}
         onClick={(e) => {
+          if (isInProgress) return;
           e.stopPropagation();
           onRemove?.();
         }}
@@ -42,8 +43,9 @@ export const Wire: React.FC<WireProps> = ({
       <path
         className={`wire-path ${isInProgress ? 'in-progress' : ''}`}
         d={path}
-        style={{ pointerEvents: 'auto' }}
+        style={{ pointerEvents: isInProgress ? 'none' : 'auto' }}
         onClick={(e) => {
+          if (isInProgress) return;
           e.stopPropagation();
           onRemove?.();
         }}
