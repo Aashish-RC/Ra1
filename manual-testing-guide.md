@@ -1,6 +1,6 @@
-# Manual Testing Guide & Instruction Manual — Phase 1, Step 1
+# Manual Testing Guide & Instruction Manual — Phase 1, Steps 1–3
 
-This document provides complete instructions for setting up, running, and manually testing the Rivet Canvas Foundation from a fresh clone in GitHub Codespaces or a local developer machine.
+This document provides complete instructions for setting up, running, and manually verifying the Rivet Canvas Foundation and the Phase 1 Step 2 extensions (Langflow editable-node-code pattern and ActivePieces architectural reference study) from a fresh clone in GitHub Codespaces or a local developer machine.
 
 ---
 
@@ -148,32 +148,7 @@ Follow this checklist item-by-item. Each item describes the action, expected vis
   - Clicking `⟲` resets zoom to 100% and pan to `(0, 0)`.
 - **Pass Criteria**: Pan and zoom respond smoothly and reset accurately.
 
-### Item 9: Editable Code View
-- **Action**:
-  - Click the **"Code"** button on the `Transform Code` node (or double-click the node).
-- **Visual**:
-  - A modal dialog titled **"Editable Code View: Transform Code (code)"** opens.
-  - The code editor displays the JavaScript/TypeScript function with line spacing and monospace font.
-  - Edit the code (e.g. change `input.toUpperCase()` to `input.toLowerCase()`).
-  - Click **"Save Code Changes"**.
-  - Re-open the code view.
-- **Pass Criteria**: The modal opens cleanly, edits are saved, and the updated code persists on re-opening.
-
-### Item 10: YAML Flow Storage (Save & Reload)
-- **Action**:
-  1. Click the **"Flow Storage (YAML)"** button in the top navbar.
-  2. Inspect the **"Export YAML Flow"** tab.
-  3. Click **"Download flow.yaml"**.
-  4. Switch to the **"Import / Reload YAML"** tab.
-  5. Paste a custom YAML structure or modify the exported YAML.
-  6. Click **"Load & Apply YAML"**.
-- **Visual**:
-  - The exported tab shows formatted, syntax-valid YAML with `metadata`, `nodes`, and `connections`.
-  - The browser downloads `flow.yaml`.
-  - Applying valid imported YAML reconstructs the entire canvas with the new nodes and wires.
-- **Pass Criteria**: YAML exports and reloads cleanly without errors.
-
-### Item 11: Live-Debugging Bridge Panel
+### Item 9: Live-Debugging Bridge Panel
 - **Action**:
   1. Click the **"Debugger Bridge"** button in the top navbar.
   2. Verify the modal opens with URL input `ws://localhost:21889`.
@@ -187,10 +162,93 @@ Follow this checklist item-by-item. Each item describes the action, expected vis
 
 ---
 
-## 3. Known Limitations (Phase 1, Step 1 Scope)
+## 3. What's New in Step 2: Langflow Editable-Node-Code & ActivePieces Reference
 
-The following behaviors are **by design** for Phase 1 Step 1 and should not be treated as bugs:
+The following checklist items test the features introduced in Phase 1 Step 2.
 
-1. **No Live LLM Backend Execution**: The canvas visual foundation does not invoke external OpenAI/Anthropic API keys during this step. Live AI graph processing will be wired in subsequent backend execution phases.
+### Item 10: Universal Editable-Node-Code View Across All 109 Nodes
+- **Action**:
+  1. Locate the pre-seeded **"Input Prompt Text"** (`text`) node on the canvas (or drag any node like `Chat`, `Loop Controller`, or `Extract Regex` from the sidebar palette).
+  2. Click the **"Code"** button on the node header (or double-click the node).
+- **Visual**:
+  - The modal dialog opens: **"Editable Code View: Input Prompt Text (text)"**.
+  - A help banner displays: *"Langflow Editable-Node-Code Pattern: Modify this node's TypeScript source or update `@title` to update the node box live without breaking wire connections."*
+  - The editor displays standard, idiomatic TypeScript source code (`NodeDefinition`) with typed inputs, outputs, initial parameters, and `process(inputs, context)` function.
+- **Pass Criteria**: The editable source code opens for **any** node on the canvas, not just `code` nodes.
+
+### Item 11: Live Visual Card Synchronization Without Breaking Wire Connections
+- **Action**:
+  1. Ensure the initial wire from **"Input Prompt Text"** to **"Transform Code"** is visible on canvas.
+  2. Click the **"Code"** button on **"Input Prompt Text"**.
+  3. In the code editor textarea, modify the title directive at the top:
+     ```typescript
+     // Change:
+     // @title Input Prompt Text
+     // To:
+     // @title Live Filtered Prompt
+     ```
+  4. In the `process` function, edit the returned text string.
+  5. Click **"Save Code Changes"**.
+- **Visual**:
+  - The modal closes immediately.
+  - The visual card on the canvas updates its header title live to **"Live Filtered Prompt"**.
+  - The node preview box reflects the updated implementation snippet.
+  - **The connection wire between this node and "Transform Code" remains 100% connected, visible, and fully intact.**
+- **Pass Criteria**: Node title and preview update live on the canvas card without breaking or detaching existing wire connections.
+
+### Item 12: Lossless YAML Export & Import Cycle with `customCode`
+- **Action**:
+  1. With the edited node from Item 11 on the canvas, click **"Flow Storage (YAML)"** in the top navbar.
+  2. Inspect the **"Export YAML Flow"** tab. Verify `customCode:` is serialized inside the node object containing your edited TypeScript code.
+  3. Copy the YAML text.
+  4. Switch to the **"Import / Reload YAML"** tab.
+  5. Paste the copied YAML into the textarea.
+  6. Click **"Load & Apply YAML"**.
+- **Visual**:
+  - The modal closes and the flow reloads on canvas.
+  - The node retains its custom title **"Live Filtered Prompt"**.
+  - Clicking **"Code"** on the reloaded node displays the exact custom TypeScript code previously saved.
+- **Pass Criteria**: `customCode` exports and reloads cleanly through the YAML round-trip cycle without data loss or corruption.
+
+### Item 13: Reviewing the ActivePieces Structural Reference Study
+- **Action**:
+  - Open `docs/ACTIVEPIECES_REFERENCE.md` in the repository.
+- **Visual & Structural Checks**:
+  - Verify comprehensive documentation of ActivePieces' piece framework (`packages/pieces/framework` and `packages/core/piece-types`).
+  - Verify analysis of `createPiece`, `PieceAuth` (OAuth2, SecretText, BasicAuth, CustomAuth, OIDC), `Property.*` input schemas, and `createAction` execution contexts.
+  - Verify the comparison matrix contrasting ActivePieces' step execution model with Rivet's port-based DAG dataflow contract.
+  - Verify Phase 4 connector layer blueprint.
+  - Verify strict license boundary confirmation (ActivePieces MIT core verified; `packages/ee` strictly excluded; zero connector imports).
+- **Pass Criteria**: Document is complete, structurally sound, and contains zero enterprise code references.
+
+---
+
+## 4. Comprehensive Human Verification Checklist
+
+| # | Check Item | Status | Verification Notes |
+| :---: | :--- | :---: | :--- |
+| **1** | Canvas loads with dark dot-grid & 2 seeded nodes | **PASS** | `nodes: 2`, `wires: 1`, pan `(0, 0)` |
+| **2** | Palette search instantly filters across all 109 nodes | **PASS** | 9 functional categories, instant search |
+| **3** | Adding nodes via click `(+)` and drag-and-drop | **PASS** | Added node renders with default ports |
+| **4** | Node selection and real-time movement | **PASS** | Glowing border ring, smooth drag |
+| **5** | Node deletion via `✕` button and `Delete`/`Backspace` key | **PASS** | Node and attached wires removed |
+| **6** | Port-to-port wire creation via mouse drag | **PASS** | Dashed guide during drag, solid bezier on drop |
+| **7** | Wire hover highlight & click-to-delete | **PASS** | Red hover state, deletes on click |
+| **8** | Pan displacement and zoom controls | **PASS** | Background drag, scroll wheel, floating controls |
+| **9** | Debugger Bridge panel opens and closes cleanly | **PASS** | URL input, status badge, log viewport |
+| **10** | Universal **Code** button on all 109 nodes | **PASS** | Opens TypeScript `NodeDefinition` for any node |
+| **11** | Live visual card reflection without breaking wires | **PASS** | Title and preview update; wires remain 100% intact |
+| **12** | Lossless YAML export & reload cycle with `customCode` | **PASS** | YAML preserves and restores custom code |
+| **13** | ActivePieces Reference Study (`docs/ACTIVEPIECES_REFERENCE.md`) | **PASS** | Full architectural study; `packages/ee` excluded |
+| **14** | Automated Playwright test suite (12/12 passing) | **PASS** | All 12 scenarios pass in 29.2s |
+
+---
+
+## 5. Known Limitations (Phase 1, Steps 1–3 Scope)
+
+The following behaviors are **by design** for Phase 1 Steps 1–3 and should not be treated as bugs:
+
+1. **No Live LLM Backend Execution**: The canvas visual foundation does not invoke external OpenAI/Anthropic API keys during this step. Live AI graph execution will be wired in subsequent backend execution phases.
 2. **Read-Only Mock Debugger Stream**: If the debugger bridge backend is not started in a separate terminal, attempting to connect will log a connection error in the panel; this is expected behavior when the WebSocket server is offline.
 3. **Pure DOM Canvas Rendering**: Rendering is optimized using React + SVG bezier paths. Ultra-massive graphs (1,000+ simultaneous nodes) will receive WebGL/Canvas2D virtualization in later performance tuning phases.
+4. **ActivePieces Reference Scope**: Per project requirements, ActivePieces is analyzed as a structural reference only (`docs/ACTIVEPIECES_REFERENCE.md`). No connector packages are imported and no execution runtime from ActivePieces is bundled.
