@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start:debugger": "tsx debugger/executor.ts"
+    "start:debugger": "tsx debugger/executor.ts",
+    "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
     "nanoid": "^5.0.7",

@@ -6,6 +6,8 @@
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "start:debugger": "npm --prefix backend run start:debugger",
-    "test:ui": "npm --prefix frontend run test:ui"
+    "test:engine": "npx tsx --test backend/tests/engine.test.ts",
+    "test:ui": "npm --prefix frontend run test:ui",
+    "test": "npm run test:engine && npm run test:ui"
   }
 }

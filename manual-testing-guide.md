@@ -221,9 +221,61 @@ The following checklist items test the features introduced in Phase 1 Step 2.
   - Verify strict license boundary confirmation (ActivePieces MIT core verified; `packages/ee` strictly excluded; zero connector imports).
 - **Pass Criteria**: Document is complete, structurally sound, and contains zero enterprise code references.
 
+## 4. What's New in Steps 4–6: Model Engine & Governance Layer
+
+The following checklist items test the features introduced in Phase 1 Steps 4–6 (OmniRoute 4-Path Priority, Governance Layer, and Aggregator Integration).
+
+### Item 14: Automated Model Engine Suite (14 Scenarios)
+- **Action**: Run the automated test suite from terminal:
+  ```bash
+  npx tsx --test backend/tests/engine.test.ts
+  ```
+- **Visual**:
+  - All 14 scenarios execute in <50ms with 100% pass rate:
+    - 4-path routing (pooled quota, BYOK, BYOI)
+    - Model selection (dropdown, search, Auto)
+    - Allow/deny priority & hard culling
+    - Flagging policies (`always`, `cost-impacting`, `never`)
+    - Virtual keys, budget caps, and rate limits
+    - Auto-fallback chains
+- **Pass Criteria**: `tests 14, pass 14, fail 0`.
+
+### Item 15: Programmatic Model Engine Execution via REPL
+- **Action**: Launch `npx tsx` and run:
+  ```typescript
+  import { ModelEngine } from './backend/engine/index.js';
+  const engine = new ModelEngine();
+  const vk = engine.issueVirtualKey({ userId: 'dev-user', maxSpendUSD: 10.0 });
+  const res = await engine.execute({
+    messages: [{ role: 'user', content: 'Write a TypeScript debounce function' }],
+    selectionMode: 'auto',
+    virtualKey: vk.key,
+  });
+  console.log('Model:', res.model, '| Route:', res.routeUsed, '| Cost:', res.usage.costUSD);
+  ```
+- **Visual**:
+  - Auto mode selects a coding model (`anthropic/claude-3-5-sonnet`, `deepseek/deepseek-r1`, or `openai/gpt-4o`).
+  - Route used is `pooled-aggregator`.
+- **Pass Criteria**: Request executes end-to-end with token usage and cost accounting.
+
+### Item 16: Verifying Hard Deny-List Enforcement
+- **Action**: In `npx tsx`, execute:
+  ```typescript
+  import { ModelEngine } from './backend/engine/index.js';
+  const engine = new ModelEngine();
+  await engine.execute({
+    messages: [{ role: 'user', content: 'Hello' }],
+    model: 'openai/gpt-4o',
+    selectionMode: 'dropdown',
+    denyList: ['openai/gpt-4o'],
+  });
+  ```
+- **Visual**: Throws policy rejection error: `Requested model "GPT-4o Omni" (openai/gpt-4o) is forbidden by the deny-list.`
+- **Pass Criteria**: Denied models are rejected immediately and cannot be invoked directly or via fallback.
+
 ---
 
-## 4. Comprehensive Human Verification Checklist
+## 5. Comprehensive Human Verification Checklist
 
 | # | Check Item | Status | Verification Notes |
 | :---: | :--- | :---: | :--- |
@@ -240,15 +292,26 @@ The following checklist items test the features introduced in Phase 1 Step 2.
 | **11** | Live visual card reflection without breaking wires | **PASS** | Title and preview update; wires remain 100% intact |
 | **12** | Lossless YAML export & reload cycle with `customCode` | **PASS** | YAML preserves and restores custom code |
 | **13** | ActivePieces Reference Study (`docs/ACTIVEPIECES_REFERENCE.md`) | **PASS** | Full architectural study; `packages/ee` excluded |
-| **14** | Automated Playwright test suite (12/12 passing) | **PASS** | All 12 scenarios pass in 29.2s |
+| **14** | Canvas UI Automated Playwright Suite (12/12 passing) | **PASS** | Regression check: all 12 scenarios pass in 41.6s |
+| **15** | Model Engine 4-Path Priority Routing | **PASS** | Pooled enterprise -> aggregator -> BYOK -> BYOI |
+| **16** | Model Selection Modes (Dropdown, Search, Auto) | **PASS** | Exact, search query, and task-aware modes verified |
+| **17** | Allow-List Priority & Deny-List Hard Culling | **PASS** | Priority boost for allow; strict exclusion for deny |
+| **18** | Notification Flagging Preferences (`always`, `cost-impacting`, `never`) | **PASS** | Flags cost-impacting out-of-allowlist selections |
+| **19** | Virtual Key Issuance (`vk-usr-...`, `vk-team-...`) | **PASS** | Scoped keys; credentials never exposed |
+| **20** | Budget Cap Enforcement (`BudgetExceededError`) | **PASS** | Pre-execution block when budget cap is met |
+| **21** | Rate Limiting (`RateLimitExceededError`) | **PASS** | Enforces sliding-window RPM & TPM |
+| **22** | Default Aggregator Integration (OpenRouter) | **PASS** | Zero-setup pooled provider path verified |
+| **23** | Auto-Fallback Chain on Provider Failure | **PASS** | Failover to next candidate in chain |
 
 ---
 
-## 5. Known Limitations (Phase 1, Steps 1–3 Scope)
+## 6. Known Limitations (Phase 1, Steps 1–6 Scope)
 
-The following behaviors are **by design** for Phase 1 Steps 1–3 and should not be treated as bugs:
+The following behaviors are **by design** for Phase 1 Steps 1–6:
 
-1. **No Live LLM Backend Execution**: The canvas visual foundation does not invoke external OpenAI/Anthropic API keys during this step. Live AI graph execution will be wired in subsequent backend execution phases.
-2. **Read-Only Mock Debugger Stream**: If the debugger bridge backend is not started in a separate terminal, attempting to connect will log a connection error in the panel; this is expected behavior when the WebSocket server is offline.
+1. **Simulated Pooled Key in Local Dev**: Unless `OPENROUTER_API_KEY` or `AGGREGATOR_API_KEY` is exported in your local environment, the engine operates in simulated pooled quota mode to prevent accidental credit burn during local development and testing.
+2. **Read-Only Mock Debugger Stream**: If the debugger bridge backend is not started in a separate terminal, attempting to connect in the UI will log a connection error; this is expected behavior when the WebSocket server is offline.
 3. **Pure DOM Canvas Rendering**: Rendering is optimized using React + SVG bezier paths. Ultra-massive graphs (1,000+ simultaneous nodes) will receive WebGL/Canvas2D virtualization in later performance tuning phases.
-4. **ActivePieces Reference Scope**: Per project requirements, ActivePieces is analyzed as a structural reference only (`docs/ACTIVEPIECES_REFERENCE.md`). No connector packages are imported and no execution runtime from ActivePieces is bundled.
+4. **ActivePieces Reference Scope**: ActivePieces is analyzed as a structural reference study only (`docs/ACTIVEPIECES_REFERENCE.md`). No connector packages are imported and no execution runtime from ActivePieces is bundled.
+5. **Admin Panel UI on Hold**: Budget and usage tracking are active in the engine layer (`UsageStore`, `BudgetTracker`); full visual admin dashboard UI is on hold per project roadmap.
+
