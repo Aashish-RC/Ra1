@@ -111,7 +111,7 @@ export const httpPiece: ConnectorPiece = {
           return {
             status: res.status,
             statusText: res.statusText,
-            headers: Object.fromEntries(res.headers.entries()),
+            headers: Object.fromEntries(res.headers as any),
             body: responseBody,
           };
         } catch (err) {
