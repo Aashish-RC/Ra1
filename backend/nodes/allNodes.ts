@@ -1076,3 +1076,35 @@ export const NODES_BY_TYPE: Record<string, NodeCatalogEntry> = Object.fromEntrie
 );
 
 export const NODE_CATEGORIES = Array.from(new Set(ALL_MERGED_NODES.map((n) => n.category)));
+
+// ---------------------------------------------------------------------------
+// Phase 4: Connector Nodes (ActivePieces MIT community pieces)
+// Wired into the canvas catalog via the ConnectorNode adapter.
+// Reference: docs/ARCHITECTURE.md §4.8 — Design Blueprint for Phase 4 Connector Layer.
+// ---------------------------------------------------------------------------
+
+import { CONNECTOR_REGISTRY } from '../connectors/connectorRegistry.js';
+import { buildConnectorNodes } from '../connectors/connectorNode.js';
+
+// Build catalog entries for all connector actions
+for (const piece of CONNECTOR_REGISTRY) {
+  const pieceNodes = buildConnectorNodes(piece);
+  for (const [nodeType, entry] of Object.entries(pieceNodes)) {
+    const catalogEntry: NodeCatalogEntry = {
+      type: nodeType,
+      title: entry.title,
+      category: entry.category,
+      description: entry.description,
+      defaultInputs: entry.defaultInputs,
+      defaultOutputs: entry.defaultOutputs,
+      defaultData: entry.defaultData,
+    };
+    NODES_BY_TYPE[nodeType] = catalogEntry;
+    ALL_MERGED_NODES.push(catalogEntry);
+  }
+}
+
+// Refresh categories list to include 'Connectors'
+export const ALL_NODE_CATEGORIES = Array.from(
+  new Set([...NODE_CATEGORIES, 'Connectors'])
+);
