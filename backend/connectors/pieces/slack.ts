@@ -30,6 +30,8 @@ export const slackPiece: ConnectorPiece = {
       actionId: 'send_message',
       displayName: 'Send Channel Message',
       description: 'Post a message to a Slack channel.',
+      consequential: true,
+      consequentialReason: 'Posts an external message to a Slack channel.',
       props: [
         {
           key: 'channel',

@@ -506,6 +506,269 @@
 }
 
 /* ============================================================
+   ReAct Execution Trace & Approval Card
+   ============================================================ */
+.thinking-step--agent {
+  border-left: 2px solid #f59e0b;
+}
+
+.thinking-step-dot--agent {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.thinking-react-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.thinking-react-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.thinking-react-step-badge {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 10px;
+  color: #f59e0b;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.thinking-react-thought {
+  color: #cbd5e1;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.thinking-react-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: #94a3b8;
+}
+
+.thinking-react-action code {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.thinking-consequential-tag {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.thinking-status-tag {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.thinking-status-tag--approved { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+.thinking-status-tag--cancelled { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+.thinking-status-tag--pending { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+
+.thinking-react-observation {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: #a1a1aa;
+  font-family: monospace;
+  font-size: 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* --- "Ask Permission First" Approval Card --- */
+.approval-card {
+  margin: 10px 0;
+  background: #0f172a;
+  border: 1.5px solid rgba(245, 158, 11, 0.4);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(245, 158, 11, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.approval-card--approved {
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(16, 185, 129, 0.1);
+}
+
+.approval-card--cancelled {
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(239, 68, 68, 0.1);
+}
+
+.approval-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.approval-card-icon {
+  font-size: 18px;
+}
+
+.approval-card-title-group {
+  flex: 1;
+}
+
+.approval-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.approval-card-subtitle {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.approval-status-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+}
+
+.approval-status-pill--pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.approval-status-pill--approved {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.approval-status-pill--cancelled {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.approval-card-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #fcd34d;
+}
+
+.approval-card-payload {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.approval-payload-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.approval-payload-pre {
+  margin: 0;
+  font-family: monospace;
+  font-size: 11px;
+  color: #38bdf8;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.approval-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.approval-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.approval-btn--approve {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.approval-btn--approve:hover {
+  background: #059669;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.approval-btn--cancel {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.approval-btn--cancel:hover {
+  background: #dc2626;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+.approval-resolution {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.approval-resolution--approved {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.approval-resolution--cancelled {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+
+/* ============================================================
    Onboarding Wizard (Step — Onboarding wizard)
    Optional, dismissible overlay — never blocks first message
    ============================================================ */

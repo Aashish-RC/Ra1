@@ -11,6 +11,7 @@ interface MessageListProps {
   onCitationClick: (citation: Citation) => void;
   onOpenInEditor: (text: string) => void;
   onOpenInSandbox: (code: string, lang: string) => void;
+  onResolveApproval?: (approvalId: string, decision: 'approved' | 'cancelled') => void;
   isSending: boolean;
 }
 
@@ -27,6 +28,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   onCitationClick,
   onOpenInEditor,
   onOpenInSandbox,
+  onResolveApproval,
   isSending,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -75,6 +77,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           onCitationClick={onCitationClick}
           onOpenInEditor={onOpenInEditor}
           onOpenInSandbox={onOpenInSandbox}
+          onResolveApproval={onResolveApproval}
         />
       ))}
 

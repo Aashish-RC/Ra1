@@ -7,12 +7,18 @@ import type { ConnectorPiece, ConnectorAction } from './connectorContract.js';
 import { slackPiece } from './pieces/slack.js';
 import { httpPiece } from './pieces/http.js';
 import { openaiChatPiece } from './pieces/openaiChat.js';
+import { emailPiece } from './pieces/email.js';
+import { calendarPiece } from './pieces/calendar.js';
+import { searchPiece } from './pieces/search.js';
 
 /** All registered connector pieces */
 export const CONNECTOR_REGISTRY: ConnectorPiece[] = [
   slackPiece,
   httpPiece,
   openaiChatPiece,
+  emailPiece,
+  calendarPiece,
+  searchPiece,
 ];
 
 /**

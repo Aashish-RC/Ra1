@@ -5,6 +5,7 @@ import { RagDocumentUpload } from './RagDocumentUpload.js';
 import {
   createThread,
   sendMessage,
+  resolveApproval,
   type ChatMessage,
   type Citation,
   type Thread,
@@ -79,7 +80,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       // Retrieve RAG context if documents are indexed
       const citations = indexedSources.length > 0 ? await retrieve(content) : [];
 
-      const response = await sendMessage(thread, content, undefined, citations);
+      const response = await sendMessage(
+        thread,
+        content,
+        undefined,
+        citations,
+        () => {
+          // Immediately sync thread so approval card renders while execution halts
+          setMessages([...thread.messages]);
+        }
+      );
 
       // Sync thread messages to local state
       setMessages([...thread.messages]);
@@ -95,6 +105,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       setIsSending(false);
     }
   }, [inputValue, isSending, getThread, indexedSources]);
+
+  const handleResolveApproval = useCallback((approvalId: string, decision: 'approved' | 'cancelled') => {
+    const thread = getThread();
+    resolveApproval(thread, approvalId, decision);
+    setMessages([...thread.messages]);
+  }, [getThread]);
 
   const handleEdit = useCallback((message: ChatMessage) => {
     setInputValue(message.content);
@@ -240,6 +256,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         onCitationClick={onCitationClick}
         onOpenInEditor={(text) => onOpenPanel('editor', { content: text })}
         onOpenInSandbox={(code, lang) => onOpenPanel('sandbox', { code, language: lang })}
+        onResolveApproval={handleResolveApproval}
         isSending={isSending}
       />
 

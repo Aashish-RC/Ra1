@@ -9,6 +9,7 @@ This document is the single authoritative reference for Ra1's node contract, mod
 4. [ActivePieces Reference Study](#section-4-activepieces-piece-declaration-framework-structural-reference-study)
 5. [Merged Built-In Nodes Catalog](#section-5-merged-built-in-nodes-catalog--file-reconciliation)
 6. [Onboarding Flow & AI Thinking Drawer Architecture](#section-6-onboarding-flow--ai-thinking-drawer-architecture)
+7. [ReAct Agent Loop, "Ask Permission First" Approval Card & MCP Wiring Architecture](#section-7-react-agent-loop-ask-permission-first-approval-card--mcp-wiring-architecture)
 
 ---
 
@@ -930,4 +931,100 @@ export interface OnboardingPreferences {
 | `frontend/src/styles/phase3.css` | Styles for onboarding modal, split preview, live previews, thinking drawer, and z-index hierarchy. |
 | `frontend/tests/onboarding.spec.ts` | 5 Playwright end-to-end test cases (OB1–OB5) validating non-blocking load, preview reactivity, completion, skipping, and reopening. |
 | `frontend/tests/thinking.spec.ts` | 3 Playwright end-to-end test cases (TK1–TK3) validating collapsed default, toggling, and real RAG retrieval data display. |
+
+---
+
+## Section 7: ReAct Agent Loop, "Ask Permission First" Approval Card & MCP Wiring Architecture
+
+### 7.1 Overview & System Architecture
+
+This section specifies the architecture for Ra1's autonomous agent orchestration subsystem:
+1. **ReAct Orchestration Loop**: An iterative Think → Act → Observe → Repeat/Finish execution engine wired directly into the live `ModelEngine` and `chatService`.
+2. **"Ask Permission First" Approval System**: A human-in-the-loop gatekeeper that intercepts any consequential action (external communication, calendar booking, destructive mutations, file deletion), halting execution until the user explicitly clicks Approve or Cancel.
+3. **MCP Live Wiring**: Direct bridge connecting Rivet's Phase 1 MCP nodes (`mcpDiscovery`, `mcpGetPrompt`, `mcpToolCall`) into the agent's live callable tool registry alongside ActivePieces connectors without namespace collisions.
+4. **Native Connectors Starter Set**: Real, functional implementations of Email, Calendar, and Web Search invokable both directly and through the ReAct loop. Storage and finance connectors are explicitly out of scope for this phase.
+
+---
+
+### 7.2 Pattern References & License Verification
+
+| Reference Repository | Upstream License | Policy & Implementation Boundary |
+|---|---|---|
+| **Dify** (`langgenius/dify`) | **Dify Open Source License / Apache 2.0 with Commons Clause** | **Ideas-only pattern reference** for ReAct loop state transitions and human-in-the-loop approval card UX. Zero upstream source code copied. Pure native TypeScript clean-room implementation. |
+| **n8n** (`n8n-io/n8n`) | **Sustainable Use License** (Fair-code / non-permissive commercial) | **Ideas-only pattern reference** for approval-node execution gating. Zero upstream code or assets copied. |
+| **Rivet MCP** (`ironclad/rivet`) | **MIT License** (Permissive) | Structural contract reference for `mcpDiscovery`, `mcpGetPrompt`, and `mcpToolCall` node schemas. |
+| **ActivePieces Pieces** (`activepieces/activepieces`) | **MIT License** (Community Pieces only) | Action and prop declaration patterns for connector pieces. Zero enterprise or non-free code utilized. |
+
+---
+
+### 7.3 ReAct Loop Engine (`backend/engine/agent/reactLoop.ts`)
+
+#### 7.3.1 Cycle Mechanics
+- **Think**: Model evaluates the user prompt and prior observation history, outputting structured reasoning thoughts.
+- **Act**: Identifies candidate tool from unified registry (`piece:*` or `mcp:*`).
+  - If the action is tagged `consequential: true`: fires `requestApproval()` and halts execution on an unresolved promise.
+  - If approved: executes action via `ConnectorAction.run()` or `executeMCPTool()`.
+  - If cancelled: aborts tool execution immediately with zero side effects.
+- **Observe**: Normalizes output payload into text/JSON for the agent's context.
+- **Repeat / Finish**: Loops back to Think. Terminates when model produces final answer, user cancels, or `maxSteps` (default: 5) is reached.
+
+#### 7.3.2 Infinite Loop & Failure Protection
+- **Bounded Iteration**: Strict `maxSteps` ceiling guarantees termination even if model oscillates.
+- **Graceful Error Recovery**: Tool execution errors are caught, serialized into observations, and presented to the model rather than causing uncaught exceptions.
+
+---
+
+### 7.4 "Ask Permission First" Approval Card (`ApprovalCard.tsx`)
+
+#### 7.4.1 Consequential Action Classification
+An action is classified as consequential if:
+1. `ConnectorAction.consequential === true` (e.g. `piece:email:send_email`, `piece:calendar:create_event`, `piece:slack:send_message`).
+2. `MCPTool.consequential === true` (e.g. `mcp:filesystem:delete_file`, `mcp:github:create_issue`).
+3. The action matches external mutation, financial transaction, or permanent data deletion heuristics.
+
+#### 7.4.2 Execution Halting & Zero Side Effect Guarantee
+- **Genuine Halt**: Execution halts at the orchestrator level using an unresolved `Promise<'approved' | 'cancelled'>` stored in `Thread.pendingApproval`. No background timer or speculative execution runs ahead.
+- **Zero Side Effects on Cancel**: If the user clicks `#approval-cancel-btn`, the action is discarded without ever calling `run()`. The loop records the cancellation and synthesizes a confirmation that no changes were made.
+
+---
+
+### 7.5 MCP Live Wiring Bridge (`backend/connectors/mcpBridge.ts`)
+
+- **Discovery (`mcpDiscovery`)**: Discovers tools from registered in-memory or HTTP MCP servers via `discoverMCPTools()`.
+- **Tool Namespacing**: All MCP tools use the prefix `mcp:{server}:{tool}` to prevent collision with connector pieces (`piece:{pieceId}:{actionId}`).
+- **Tool Invocation (`mcpToolCall`)**: Dispatches arguments to `executeMCPTool()`, returning normalized outputs to the ReAct observation stream.
+- **Prompt Templates (`mcpGetPrompt`)**: Fetches prompt templates by name with parameter interpolation.
+
+---
+
+### 7.6 Native Starter Connectors
+
+1. **Email Connector (`piece:email`)**:
+   - `send_email` [Consequential]: Dispatches email to external recipients (`to`, `subject`, `body`, `cc`).
+   - `list_emails` [Read-Only]: Queries inbox messages with keyword filter and limit.
+2. **Calendar Connector (`piece:calendar`)**:
+   - `create_event` [Consequential]: Schedules event on calendar with start/end time and attendee invites.
+   - `list_events` [Read-Only]: Fetches upcoming events within a time range.
+3. **Web Search Connector (`piece:search`)**:
+   - `web_search` [Read-Only]: Executes web query and returns ranked titles, snippets, and URLs.
+
+---
+
+### 7.7 File Inventory
+
+| Component / File | Role |
+|---|---|
+| `backend/engine/agent/reactLoop.ts` | Core ReAct agent orchestrator with Think-Act-Observe-Repeat, approval pause, and tool dispatch. |
+| `backend/connectors/mcpBridge.ts` | MCP server registry, capability discovery, prompt retrieval, and tool call runner. |
+| `backend/connectors/pieces/email.ts` | Native Email connector piece (`send_email`, `list_emails`). |
+| `backend/connectors/pieces/calendar.ts` | Native Calendar connector piece (`create_event`, `list_events`). |
+| `backend/connectors/pieces/search.ts` | Native Web Search connector piece (`web_search`). |
+| `backend/chat/chatService.ts` | Chat pipeline integration supporting ReAct loops, approval cards, and approval resolution. |
+| `frontend/src/components/chat/ApprovalCard.tsx` | Interactive approval card UI with action details, payload summary, and Approve/Cancel triggers. |
+| `frontend/src/components/chat/MessageBubble.tsx` | Message renderer hosting `<ApprovalCard />` and `<ThinkingDrawer />`. |
+| `frontend/src/components/chat/ThinkingDrawer.tsx` | Collapsible drawer displaying ReAct execution traces, tool calls, and observations. |
+| `frontend/src/components/chat/ChatPanel.tsx` | Panel wiring approval state synchronization and resolution handlers. |
+| `backend/tests/agentLoop.test.ts` | 10 Node.js unit & integration tests for ReAct, approvals, cancel safety, MCP, and native connectors. |
+| `frontend/tests/agent.spec.ts` | 6 Playwright E2E tests validating multi-step tasks, approval halts, cancel safety, MCP, and connectors. |
+
 

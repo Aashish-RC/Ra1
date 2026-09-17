@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import type { ChatMessage, Citation } from '../../../../backend/chat/chatService.js';
 import { CitationBadge } from './CitationBadge.js';
 import { ThinkingDrawer } from './ThinkingDrawer.js';
+import { ApprovalCard } from './ApprovalCard.js';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
@@ -51,6 +52,7 @@ interface MessageBubbleProps {
   onCitationClick: (citation: Citation) => void;
   onOpenInEditor: (text: string) => void;
   onOpenInSandbox: (code: string, lang: string) => void;
+  onResolveApproval?: (approvalId: string, decision: 'approved' | 'cancelled') => void;
 }
 
 /**
@@ -66,28 +68,45 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onCitationClick,
   onOpenInEditor,
   onOpenInSandbox,
+  onResolveApproval,
 }) => {
   const renderedHtml = useMemo(() => renderMarkdown(message.content), [message.content]);
   const [showActions, setShowActions] = React.useState(false);
 
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
+
+  const timestamp = useMemo(() => {
+    const d = new Date(message.timestamp);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }, [message.timestamp]);
+
+  const handleCopy = useCallback(() => {
+    onCopy(message.content);
+  }, [message.content, onCopy]);
+
+  const handleEdit = useCallback(() => {
+    onEdit(message);
+  }, [message, onEdit]);
+
+  const handleRetry = useCallback(() => {
+    onRetry(message);
+  }, [message, onRetry]);
+
+  // Check if content has code blocks for sandbox action
+  const { hasCode, codeLanguage, codeContent } = useMemo(() => {
+    const codeMatch = message.content.match(/```(\w+)?\n([\s\S]*?)```/);
+    if (codeMatch) {
+      return {
+        hasCode: true,
+        codeLanguage: codeMatch[1]?.toLowerCase() || 'javascript',
+        codeContent: codeMatch[2]?.trim() || '',
+      };
+    }
+    return { hasCode: false, codeLanguage: '', codeContent: '' };
+  }, [message.content]);
+
   const isLong = message.content.length > 200;
-
-  // Detect code blocks for sandbox opening
-  const codeMatch = message.content.match(/```(\w+)?\n([\s\S]*?)```/);
-  const hasCode = Boolean(codeMatch && codeMatch[2]);
-  const codeLanguage = codeMatch?.[1] ?? 'js';
-  const codeContent = codeMatch?.[2] ?? '';
-
-  const handleCopy = useCallback(() => onCopy(message.content), [onCopy, message.content]);
-  const handleEdit = useCallback(() => onEdit(message), [onEdit, message]);
-  const handleRetry = useCallback(() => onRetry(message), [onRetry, message]);
-
-  const timestamp = new Date(message.timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
   return (
     <div
@@ -105,8 +124,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <span className="message-timestamp">{timestamp}</span>
       </div>
 
-      {/* AI Thinking Drawer — above assistant replies */}
-      {isAssistant && <ThinkingDrawer message={message} />}
+      {/* AI Thinking Drawer — above assistant replies when not an approval prompt */}
+      {isAssistant && !message.approvalRequest && <ThinkingDrawer message={message} />}
+
+      {/* "Ask Permission First" Approval Card for consequential actions */}
+      {message.approvalRequest && onResolveApproval && (
+        <ApprovalCard
+          approval={message.approvalRequest}
+          onResolve={onResolveApproval}
+        />
+      )}
 
       <div className="message-content">
         {renderedHtml ? (

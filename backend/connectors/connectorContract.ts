@@ -35,6 +35,9 @@ export interface ConnectorAction {
   displayName: string;
   description: string;
   props: ConnectorProp[];
+  /** Flag indicating whether this action causes irreversible, external, or financial mutations */
+  consequential?: boolean;
+  consequentialReason?: string;
   /** Execute the action with resolved context */
   run(context: ConnectorContext): Promise<unknown>;
 }

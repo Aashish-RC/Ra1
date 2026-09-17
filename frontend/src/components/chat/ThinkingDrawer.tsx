@@ -9,8 +9,9 @@ interface ThinkingDrawerProps {
  * AI Thinking Drawer — expandable trace drawer positioned above assistant messages.
  * Collapsed by default. Surfaces existing pipeline data:
  * - RAG retrieval steps (chunk count, source file names, top score, excerpts)
+ * - ReAct Agent execution steps (Think, Act, Observe, Tool Invocations)
  * - Model routing path & model ID
- * - Connector / attachment status
+ * - Connector / tool execution status
  *
  * Reference: Letta thought-loop/debugger UX pattern (reference only, zero upstream code copied).
  */
@@ -22,8 +23,12 @@ export const ThinkingDrawer: React.FC<ThinkingDrawerProps> = ({ message }) => {
   const uniqueSources = Array.from(new Set(citations.map((c) => c.sourceFile)));
   const topScore = hasRag && citations[0].score ? Math.round(citations[0].score * 100) : null;
 
+  const reactSteps = message.reactSteps ?? [];
+  const hasAgentSteps = reactSteps.length > 0;
+  const toolsInvoked = message.toolsInvoked ?? [];
+
   // Calculate number of thinking/execution steps to display in summary
-  const stepCount = hasRag ? 3 : 2;
+  const stepCount = hasAgentSteps ? reactSteps.length + (hasRag ? 2 : 1) : (hasRag ? 3 : 2);
 
   return (
     <div className="thinking-drawer" id={`thinking-drawer-${message.id}`}>
@@ -42,7 +47,11 @@ export const ThinkingDrawer: React.FC<ThinkingDrawerProps> = ({ message }) => {
           {isExpanded ? 'Hide Thought Process' : `Thinking (${stepCount} steps)...`}
         </span>
         <span className="thinking-badge">
-          {hasRag ? `RAG: ${citations.length} chunks` : 'Direct Route'}
+          {hasAgentSteps
+            ? `Agent: ${toolsInvoked.length} tools`
+            : hasRag
+            ? `RAG: ${citations.length} chunks`
+            : 'Direct Route'}
         </span>
         <span className="thinking-chevron">{isExpanded ? '▼' : '▶'}</span>
       </button>
@@ -55,6 +64,49 @@ export const ThinkingDrawer: React.FC<ThinkingDrawerProps> = ({ message }) => {
           role="region"
           aria-label="Execution details and thought process"
         >
+          {/* Optional ReAct Agent Execution Steps */}
+          {hasAgentSteps && (
+            <div className="thinking-step thinking-step--agent" id={`thinking-step-agent-${message.id}`}>
+              <div className="thinking-step-header">
+                <span className="thinking-step-dot thinking-step-dot--agent">⚡</span>
+                <span className="thinking-step-title">ReAct Execution Trace</span>
+                <span className="thinking-step-pill thinking-step-pill--info">
+                  {reactSteps.length} Cycles
+                </span>
+              </div>
+              <div className="thinking-step-body">
+                <div className="thinking-react-list">
+                  {reactSteps.map((step) => (
+                    <div key={step.stepNumber} className="thinking-react-card">
+                      <div className="thinking-react-step-badge">Step {step.stepNumber}</div>
+                      <div className="thinking-react-thought">
+                        <strong>Thought:</strong> {step.thought}
+                      </div>
+                      {step.action && (
+                        <div className="thinking-react-action">
+                          <strong>Action:</strong> <code>{step.action.tool}</code>
+                          {step.action.consequential && (
+                            <span className="thinking-consequential-tag">⚠️ Consequential</span>
+                          )}
+                          {step.action.approvalStatus && (
+                            <span className={`thinking-status-tag thinking-status-tag--${step.action.approvalStatus}`}>
+                              {step.action.approvalStatus.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {step.observation && (
+                        <div className="thinking-react-observation">
+                          <strong>Observation:</strong> {step.observation}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Step 1: Knowledge Retrieval (RAG) */}
           <div className="thinking-step" id={`thinking-step-retrieval-${message.id}`}>
             <div className="thinking-step-header">
