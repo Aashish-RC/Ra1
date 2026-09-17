@@ -13,7 +13,8 @@ export class OpenRouterAggregatorAdapter implements ProviderAdapter {
   private baseUrl: string;
 
   constructor(apiKey?: string, baseUrl = 'https://openrouter.ai/api/v1') {
-    this.apiKey = apiKey || process.env.OPENROUTER_API_KEY || process.env.AGGREGATOR_API_KEY || 'sk-or-pooled-default-key';
+    const env = typeof process !== 'undefined' && process.env ? process.env : {} as Record<string, string | undefined>;
+    this.apiKey = apiKey || env.OPENROUTER_API_KEY || env.AGGREGATOR_API_KEY || 'sk-or-pooled-default-key';
     this.baseUrl = baseUrl;
   }
 
@@ -21,16 +22,17 @@ export class OpenRouterAggregatorAdapter implements ProviderAdapter {
     this.apiKey = key;
   }
 
-  async isAvailable(model: ModelDefinition): Promise<boolean> {
+  async isAvailable(model: ModelDefinition, _input?: ProviderExecutionInput): Promise<boolean> {
     // OpenRouter acts as universal aggregator for all cloud models
     return model.tier !== 'local';
   }
 
   async execute(input: ProviderExecutionInput): Promise<ProviderExecutionOutput> {
     const startTime = Date.now();
+    const isTest = typeof process !== 'undefined' && process.env ? process.env.NODE_ENV === 'test' : false;
 
     // If real key is provided and not a placeholder/test key, perform real fetch
-    if (this.apiKey && !this.apiKey.startsWith('sk-or-pooled-default') && process.env.NODE_ENV !== 'test') {
+    if (this.apiKey && !this.apiKey.startsWith('sk-or-pooled-default') && !isTest) {
       try {
         const response = await fetch(`${this.baseUrl}/chat/completions`, {
           method: 'POST',

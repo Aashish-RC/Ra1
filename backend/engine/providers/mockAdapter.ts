@@ -23,7 +23,7 @@ export class MockAdapter implements ProviderAdapter {
     }
   }
 
-  async isAvailable(model: ModelDefinition): Promise<boolean> {
+  async isAvailable(model: ModelDefinition, _input?: ProviderExecutionInput): Promise<boolean> {
     return true;
   }
 

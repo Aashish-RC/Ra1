@@ -27,7 +27,7 @@ export class EnterpriseDirectAdapter implements ProviderAdapter {
     this.isQuotaExhausted = exhausted;
   }
 
-  async isAvailable(model: ModelDefinition): Promise<boolean> {
+  async isAvailable(model: ModelDefinition, _input?: ProviderExecutionInput): Promise<boolean> {
     if (this.isQuotaExhausted) return false;
     // Available if an enterprise key is registered for this provider
     return this.enterpriseKeys.has(model.provider.toLowerCase());

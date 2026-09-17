@@ -279,7 +279,7 @@ describe('Model Engine & Governance Layer (Scenarios 1-14)', () => {
           virtualKey: key.key,
         });
       },
-      (err) => err instanceof BudgetExceededError
+      (err: unknown) => err instanceof BudgetExceededError
     );
   });
 
@@ -318,7 +318,7 @@ describe('Model Engine & Governance Layer (Scenarios 1-14)', () => {
           virtualKey: key.key,
         });
       },
-      (err) => err instanceof RateLimitExceededError && err.limitType === 'RPM'
+      (err: unknown) => err instanceof RateLimitExceededError && err.limitType === 'RPM'
     );
   });
 
