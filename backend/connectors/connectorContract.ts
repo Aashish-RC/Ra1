@@ -28,6 +28,8 @@ export interface ConnectorContext {
   auth?: Record<string, string>;
   /** Fully resolved input values keyed by ConnectorProp.key */
   propsValue: Record<string, unknown>;
+  userId?: string;
+  spaceId?: string;
 }
 
 export interface ConnectorAction {

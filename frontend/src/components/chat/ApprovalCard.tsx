@@ -35,6 +35,18 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onResolve 
         <span>{approval.consequentialReason}</span>
       </div>
 
+      {approval.screenshotUrl && (
+        <div className="approval-card-screenshot">
+          <div className="approval-screenshot-label">Page State Snapshot:</div>
+          <img
+            src={approval.screenshotUrl}
+            alt="Page state snapshot before consequential action"
+            className="approval-screenshot-img"
+            id="approval-card-screenshot-img"
+          />
+        </div>
+      )}
+
       {approval.args && Object.keys(approval.args).length > 0 && (
         <div className="approval-card-payload">
           <div className="approval-payload-label">Target Parameters:</div>

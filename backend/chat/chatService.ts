@@ -133,6 +133,8 @@ export async function sendMessage(
     const reactResult = await runReActLoop(userContent, {
       engine,
       selectedModel: thread.model,
+      userId: effectiveUserId,
+      spaceId: thread.spaceId,
       requestApproval: async (approval) => {
         approval.threadId = thread.id;
 

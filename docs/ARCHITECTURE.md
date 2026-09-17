@@ -1160,5 +1160,111 @@ If any other authenticated user attempts to approve or cancel the action, execut
 | `backend/tests/authAccessControl.test.ts` | 9 comprehensive Node.js tests covering auth lifecycle, governance isolation, agent scoping, and privacy. |
 | `frontend/tests/auth.spec.ts` | 6 Playwright E2E tests validating login/signup, OAuth buttons, Space switching, and user-scoped chat. |
 
+---
+
+## 9. Browser / Computer-Use Agent Architecture & Safety Boundaries
+
+### 9.1 Overview & System Architecture
+The Browser / Computer-Use Agent grants the ReAct orchestrator autonomous capabilities to perceive and act on real web pages (`navigate`, `extract`, `click`, `type`, `scroll`, `screenshot`). Because the agent can manipulate external web state, the system is engineered around **safety perimeter enforcement** where judgment about when *not* to act takes strict precedence over task completion.
+
+```
+                           ┌──────────────────────────────────────────────┐
+                           │              ReAct Agent Loop                │
+                           │  (Think ──► Tool Selection ──► Observe)      │
+                           └──────────────────────┬───────────────────────┘
+                                                  │
+                                                  ▼
+                           ┌──────────────────────────────────────────────┐
+                           │          Unified Tool Registry               │
+                           │          (piece:browser:*)                   │
+                           └──────────────────────┬───────────────────────┘
+                                                  │
+                                                  ▼
+                           ┌──────────────────────────────────────────────┐
+                           │          Browser Session Manager             │
+                           │    (User/Space Scoped, Timeout Bounded)      │
+                           └──────────────────────┬───────────────────────┘
+                                                  │
+                     ┌────────────────────────────┼───────────────────────────┐
+                     │                            │                           │
+                     ▼                            ▼                           ▼
+          ┌─────────────────────┐      ┌─────────────────────┐     ┌─────────────────────┐
+          │   Read-Only Path    │      │  Consequential Path │     │  HARD-DENY SHIELD   │
+          │ navigate / extract  │      │ click / submit /    │     │ type() into         │
+          │ screenshot / scroll │      │ mutative typing     │     │ password / payment  │
+          │                     │      │                     │     │ personal-ID fields  │
+          └──────────┬──────────┘      └──────────┬──────────┘     └──────────┬──────────┘
+                     │                            │                           │
+                     ▼                            ▼                           ▼
+          ┌─────────────────────┐      ┌─────────────────────┐     ┌─────────────────────┐
+          │  Direct Execution   │      │ Approval Card with  │     │ IMMEDIATE REJECTION │
+          │ (Zero human approval│      │ Page Screenshot     │     │ Zero DOM interaction│
+          │  required)          │      │ (Halt until approved│     │ HardDenyError thrown│
+          └─────────────────────┘      └─────────────────────┘     └─────────────────────┘
+```
+
+### 9.2 Core Safety Rails & The Explicit Hard-Deny Perimeter
+
+#### 9.2.1 The Hard-Deny Perimeter (Zero DOM Interaction)
+Under no circumstances will the agent type into or interact with sensitive identity, credential, or financial input fields. When `type(element_id, text)` targets any element detected as sensitive:
+1. **Immediate Execution Rejection**: The controller throws `HardDenyError` immediately.
+2. **Zero DOM Typing**: Neither `page.fill`, `page.type`, nor focus events are ever dispatched to the target element. The field in the browser DOM remains completely unpopulated.
+3. **No Approval Routing**: Sensitive fields are **not** routed to the user approval card. They are hard excluded unconditionally, identical to the denied-model exclusion boundary in the Model Engine.
+
+#### 9.2.2 Explicit Hard-Deny Pattern Registry
+The classifier (`classifySensitiveField`) analyzes tag names, input types, element names, IDs, placeholders, ARIA labels, and autocomplete attributes against the explicit hard-deny registry:
+
+| Category | Targeted Attributes & Tokens | Examples of Denied Elements |
+|---|---|---|
+| **Credentials & Passwords** | `password`, `passwd`, `passcode`, `pin`, `secret` | `<input type="password">`, `<input name="user_pin">` |
+| **Payment Cards** | `card_number`, `credit_card`, `debit_card`, `card_exp`, `expiry`, `expiration`, `cvv`, `cvc`, `security_code` | `<input placeholder="4111 2222...">`, `<input name="cvv">` |
+| **Banking & Financial** | `bank_account`, `routing_number`, `iban`, `swift_bic` | `<input name="routing_number">`, `<input id="iban">` |
+| **Government & Personal IDs** | `ssn`, `social_security`, `national_id`, `tax_id` | `<input name="ssn">`, `<input placeholder="000-00-0000">` |
+| **Autocomplete Sensitive Tokens** | `current-password`, `new-password`, `cc-number`, `cc-exp`, `cc-csc`, `cc-type` | `<input autocomplete="cc-number">` |
+
+### 9.3 DOM-to-Action-Space Perception (browser-use Pattern)
+Adapted from `browser-use` (MIT), pages are transformed into a clean, numbered, LLM-addressable action space rather than raw screenshot grids or bloated HTML trees:
+- Interactive candidates (`a`, `button`, `input`, `select`, `textarea`) are filtered by visibility (`width > 0`, `height > 0`, computed styles).
+- Elements are stamped with a temporary sequential identifier attribute `[data-ra1-action-id="n"]`.
+- The controller compiles a structured summary for the LLM:
+  ```
+  Current Page: "Store Checkout"
+  URL: http://example.com/checkout
+  Interactive Elements:
+  [1] link "Home"
+  [2] input "Shipping Address" (placeholder="123 Main St")
+  [3] input "Credit Card" (🔒 SENSITIVE)
+  [4] button "Submit Order" (⚡ STATE-CHANGING)
+  ```
+
+### 9.4 Bounded Session Lifecycle & User/Space Isolation
+- **Session Scoping**: Browser contexts are strictly partitioned per `userId:spaceId`. User A cannot view, inspect, or manipulate User B's active browser context.
+- **Hard Wall-Clock Timeout (30s)**: Sessions enforce an independent 30-second wall-clock timeout (`wallClockTimeoutMs`). If an external page hangs or stalls, `BrowserSessionTimeoutError` terminates the session.
+- **Hard Max-Steps Bound (10 Steps)**: Sessions enforce a hard execution bound (`maxSteps: 10`), stopping stuck loops independent of the outer ReAct agent's max-step threshold.
+- **Clean Ephemeral State**: No cross-session persistence of cookies or credentials in this batch. Every agent invocation runs in a fresh, isolated `BrowserContext`.
+
+### 9.5 Human-In-The-Loop Approval Cards for State Mutations
+- **State-Changing Actions**: Any action modifying external state (`click` on submit/order/purchase buttons, `type` on standard input fields, form submission) halts execution and generates an Approval Card.
+- **Visual Audit Trail**: The Approval Card captures and embeds the actual page state screenshot (`data:image/png;base64,...`) and specific action parameters (`Click Element #4 ("Submit Order")`).
+- **Zero Side Effects on Cancel**: When a user clicks **Cancel Action**, the browser controller aborts immediately. Playwright action spies verify that `page.click` and `page.fill` are never called, and form endpoints are never reached.
+- **Approval Authorization**: Inherits the Auth batch ownership rule—only the user owning the thread can resolve the approval card.
+
+---
+
+### 9.6 File Inventory
+
+| File / Component | Responsibility |
+|---|---|
+| `backend/connectors/pieces/browser.ts` | Playwright session manager, DOM-to-action-space extractor, hard-deny classifier, and `browserPiece` connector definition. |
+| `backend/connectors/connectorRegistry.ts` | Registered `browserPiece` into `CONNECTOR_REGISTRY`. |
+| `backend/connectors/connectorContract.ts` | Extended `ConnectorContext` to support `userId` and `spaceId` propagation. |
+| `backend/engine/agent/reactLoop.ts` | Integrated browser tool planning, screenshot approval payload, and scoped session execution. |
+| `backend/chat/chatService.ts` | Propagates thread `userId` and `spaceId` into `runReActLoop`. |
+| `frontend/src/components/chat/ApprovalCard.tsx` | Renders actual page screenshot (`#approval-card-screenshot-img`) during approval requests. |
+| `frontend/src/styles/phase3.css` | Styles for approval card screenshot previews. |
+| `backend/tests/browserUse.test.ts` | 10 Node.js integration tests covering session isolation, hard-deny perimeter, approval cards, timeout, and max steps. |
+| `frontend/tests/browser.spec.ts` | 4 Playwright E2E tests validating in-chat browser invocation, screenshot rendering, approval execution, and cancellation. |
+
+
 
 

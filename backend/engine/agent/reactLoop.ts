@@ -14,6 +14,7 @@
 import { nanoid } from 'nanoid';
 import { CONNECTOR_REGISTRY, getConnectorAction, parseConnectorNodeType } from '../../connectors/connectorRegistry.js';
 import { discoverMCPTools, executeMCPTool, parseMCPToolId, type MCPTool } from '../../connectors/mcpBridge.js';
+import { browserSessionManager } from '../../connectors/pieces/browser.js';
 import { ModelEngine } from '../index.js';
 import type { EngineMessage } from '../types.js';
 
@@ -39,6 +40,7 @@ export interface ReActStep {
     consequentialReason?: string;
     approvalId?: string;
     approvalStatus?: 'pending' | 'approved' | 'cancelled' | 'not_required';
+    screenshotUrl?: string;
   };
   observation?: string;
 }
@@ -53,6 +55,7 @@ export interface ApprovalRequest {
   status: 'pending' | 'approved' | 'cancelled';
   createdAt: number;
   resolvedAt?: number;
+  screenshotUrl?: string;
 }
 
 export interface ReActLoopOptions {
@@ -61,6 +64,8 @@ export interface ReActLoopOptions {
   onStep?: (step: ReActStep) => void;
   requestApproval?: (approval: ApprovalRequest) => Promise<'approved' | 'cancelled'>;
   selectedModel?: string;
+  userId?: string;
+  spaceId?: string;
 }
 
 export interface ReActLoopResult {
@@ -75,10 +80,10 @@ export interface ReActLoopResult {
  * Builds the unified tool registry combining ActivePieces connectors,
  * Native connectors (email, calendar, search), and discovered MCP tools.
  */
-export async function buildAgentToolRegistry(): Promise<AgentTool[]> {
+export async function buildAgentToolRegistry(userId?: string, spaceId?: string): Promise<AgentTool[]> {
   const tools: AgentTool[] = [];
 
-  // 1. Connectors (ActivePieces + Native)
+  // 1. Connectors (ActivePieces + Native + Browser)
   for (const piece of CONNECTOR_REGISTRY) {
     for (const action of piece.actions) {
       const toolId = `piece:${piece.pieceId}:${action.actionId}`;
@@ -89,7 +94,7 @@ export async function buildAgentToolRegistry(): Promise<AgentTool[]> {
         category: piece.category,
         consequential: Boolean(action.consequential),
         consequentialReason: action.consequentialReason,
-        run: async (args) => action.run({ propsValue: args }),
+        run: async (args) => action.run({ propsValue: args, userId, spaceId }),
       });
     }
   }
@@ -114,7 +119,7 @@ export async function buildAgentToolRegistry(): Promise<AgentTool[]> {
 
 /**
  * Determine if a prompt should engage the ReAct agent loop
- * (e.g. asking to search, send email, create event, check file, query MCP, or execute multi-step tasks).
+ * (e.g. asking to search, send email, create event, check file, query MCP, browse web, or execute multi-step tasks).
  */
 export function shouldEngageAgent(prompt: string): boolean {
   const p = prompt.toLowerCase();
@@ -125,6 +130,8 @@ export function shouldEngageAgent(prompt: string): boolean {
     'slack', 'post message',
     'mcp', 'file', 'read file', 'delete file', 'github', 'issue',
     'tool', 'connector', 'step 1', 'first', 'then',
+    'browse', 'browser', 'navigate', 'web page', 'webpage', 'click', 'open page',
+    'http://', 'https://',
   ];
   return keywords.some((kw) => p.includes(kw));
 }
@@ -323,6 +330,112 @@ function planNextStep(
     };
   }
 
+  // Browser navigation and interaction scenario
+  if (
+    p.includes('browse') ||
+    p.includes('navigate') ||
+    p.includes('open page') ||
+    p.includes('webpage') ||
+    p.includes('web page') ||
+    p.includes('http://') ||
+    p.includes('https://') ||
+    p.includes('browser') ||
+    (p.includes('url') && (p.includes('go to') || p.includes('open') || p.includes('visit')))
+  ) {
+    const urlMatch = userPrompt.match(/https?:\/\/[^\s'")]+/i);
+    const targetUrl = urlMatch ? urlMatch[0] : 'http://localhost:3000';
+
+    const navStep = history.find((s) => s.action?.tool.includes('browser:navigate'));
+    if (!navStep) {
+      return {
+        thought: `I need to navigate to the web page at ${targetUrl} and extract the action space.`,
+        toolId: 'piece:browser:navigate',
+        toolArgs: { url: targetUrl },
+        isFinished: false,
+      };
+    }
+
+    if (p.includes('click') || p.includes('submit') || p.includes('button')) {
+      const clickStep = history.find((s) => s.action?.tool.includes('browser:click') || (s.action?.tool.includes('browser:act') && s.action?.args.action === 'click'));
+      if (!clickStep) {
+        const elMatch = userPrompt.match(/(?:element|button|id)\s*#?(\d+)/i);
+        const elementId = elMatch ? Number(elMatch[1]) : 1;
+        return {
+          thought: `I will click element #${elementId} on the active page. This is a consequential action.`,
+          toolId: 'piece:browser:click',
+          toolArgs: { elementId },
+          isFinished: false,
+        };
+      }
+      return {
+        thought: 'Browser click action executed successfully.',
+        isFinished: true,
+        answer: 'Successfully clicked the target element on the web page.',
+      };
+    }
+
+    if (p.includes('type') || p.includes('enter') || p.includes('fill')) {
+      const typeStep = history.find((s) => s.action?.tool.includes('browser:type') || (s.action?.tool.includes('browser:act') && s.action?.args.action === 'type'));
+      if (!typeStep) {
+        const elMatch = userPrompt.match(/(?:element|field|input|id)\s*#?(\d+)/i);
+        const elementId = elMatch ? Number(elMatch[1]) : 1;
+        const textMatch = userPrompt.match(/type\s+["']?([^"']+)["']?/i);
+        const text = textMatch ? textMatch[1].trim() : 'Test input';
+        return {
+          thought: `I will enter text into element #${elementId}. This is a consequential action.`,
+          toolId: 'piece:browser:type',
+          toolArgs: { elementId, text },
+          isFinished: false,
+        };
+      }
+      return {
+        thought: 'Form input entered into the target element.',
+        isFinished: true,
+        answer: 'Entered text into the webpage input field.',
+      };
+    }
+
+    if (p.includes('extract') || p.includes('read') || p.includes('content') || p.includes('text')) {
+      const extractStep = history.find((s) => s.action?.tool.includes('browser:extract') || (s.action?.tool.includes('browser:act') && s.action?.args.action === 'extract'));
+      if (!extractStep) {
+        return {
+          thought: 'I will extract visible content from the loaded web page.',
+          toolId: 'piece:browser:extract',
+          toolArgs: {},
+          isFinished: false,
+        };
+      }
+      return {
+        thought: 'Content extracted from webpage.',
+        isFinished: true,
+        answer: `Page content: ${extractStep.observation || 'Extracted page content.'}`,
+      };
+    }
+
+    if (p.includes('screenshot')) {
+      const shotStep = history.find((s) => s.action?.tool.includes('browser:screenshot'));
+      if (!shotStep) {
+        return {
+          thought: 'I will capture a screenshot of the current page.',
+          toolId: 'piece:browser:screenshot',
+          toolArgs: {},
+          isFinished: false,
+        };
+      }
+      return {
+        thought: 'Page screenshot captured.',
+        isFinished: true,
+        answer: 'Captured screenshot of the active browser session.',
+      };
+    }
+
+    return {
+      thought: 'Web page loaded and interactive elements extracted.',
+      isFinished: true,
+      answer: `Loaded ${targetUrl} successfully. ${navStep.observation || ''}`,
+    };
+  }
+
   // Default: no tools needed, answer directly
   return {
     thought: 'The prompt does not require external tool invocation. Answering directly.',
@@ -339,7 +452,7 @@ export async function runReActLoop(
   options: ReActLoopOptions = {}
 ): Promise<ReActLoopResult> {
   const maxSteps = options.maxSteps || 5;
-  const tools = await buildAgentToolRegistry();
+  const tools = await buildAgentToolRegistry(options.userId, options.spaceId);
   const steps: ReActStep[] = [];
   const toolsInvoked: string[] = [];
 
@@ -403,6 +516,38 @@ export async function runReActLoop(
         stepRecord.action.approvalId = approvalId;
       }
 
+      // If browser action, capture current page screenshot for the approval card
+      let screenshotUrl: string | undefined;
+      let toolDisplayName = tool.name;
+      let consequentialReason = tool.consequentialReason || 'Irreversible action with external side effects.';
+
+      if (tool.id.startsWith('piece:browser')) {
+        try {
+          if (typeof window !== 'undefined') {
+            screenshotUrl =
+              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAACWCAYAAABkW7XSAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA7SURBVHhe7cExAQAAAMKg9U9tCy8gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHiqAQtAAAE4g6zUAAAAAElFTkSuQmCC';
+          } else {
+            const session = browserSessionManager.getSession(options.userId || 'system-agent', options.spaceId);
+            if (session?.page) {
+              const buf = await session.page.screenshot({ type: 'png' });
+              screenshotUrl = `data:image/png;base64,${buf.toString('base64')}`;
+            }
+          }
+        } catch {}
+
+        if (tool.id.includes('click') || toolArgs.action === 'click') {
+          toolDisplayName = `Browser: Click Element #${toolArgs.elementId}`;
+          consequentialReason = `Agent is about to click element #${toolArgs.elementId} on the active web page. This may submit forms or change remote state.`;
+        } else if (tool.id.includes('type') || toolArgs.action === 'type') {
+          toolDisplayName = `Browser: Type into Element #${toolArgs.elementId}`;
+          consequentialReason = `Agent is about to type "${toolArgs.text}" into element #${toolArgs.elementId} on the active web page.`;
+        }
+      }
+
+      if (stepRecord.action) {
+        stepRecord.action.screenshotUrl = screenshotUrl;
+      }
+
       let decision: 'approved' | 'cancelled' = 'approved';
 
       if (options.requestApproval) {
@@ -410,11 +555,12 @@ export async function runReActLoop(
         decision = await options.requestApproval({
           approvalId,
           tool: tool.id,
-          toolDisplayName: tool.name,
+          toolDisplayName,
           args: toolArgs,
-          consequentialReason: tool.consequentialReason || 'Irreversible action with external side effects.',
+          consequentialReason,
           status: 'pending',
           createdAt: Date.now(),
+          screenshotUrl,
         });
       }
 
@@ -424,11 +570,11 @@ export async function runReActLoop(
 
       // If user cancelled, guarantee ZERO side effects! Tool is never called.
       if (decision === 'cancelled') {
-        stepRecord.observation = `Action "${tool.name}" was cancelled by the user. No changes were made.`;
+        stepRecord.observation = `Action "${toolDisplayName}" was cancelled by the user. No changes were made.`;
         steps.push(stepRecord);
         options.onStep?.(stepRecord);
         terminatedReason = 'cancelled';
-        finalText = `Action cancelled: I did not execute ${tool.name}. Zero side effects produced.`;
+        finalText = `Action cancelled: I did not execute ${toolDisplayName}. Zero side effects produced.`;
         break;
       }
     }
