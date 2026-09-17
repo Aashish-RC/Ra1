@@ -137,10 +137,24 @@ export const App: React.FC = () => {
     setConnections((prev) => prev.filter((c) => c.id !== connectionId));
   };
 
-  // Save updated node data from CodeEditorModal
-  const handleSaveNodeData = (nodeId: string, updatedData: Record<string, unknown>) => {
+  // Save updated node data from CodeEditorModal (Langflow editable-node-code pattern)
+  const handleSaveNodeData = (
+    nodeId: string,
+    updatedData: Record<string, unknown>,
+    customCode?: string,
+    newTitle?: string
+  ) => {
     setNodes((prev) =>
-      prev.map((n) => (n.id === nodeId ? { ...n, data: updatedData } : n))
+      prev.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: updatedData,
+              ...(customCode !== undefined ? { customCode } : {}),
+              ...(newTitle && newTitle.trim() ? { title: newTitle.trim() } : {}),
+            }
+          : n
+      )
     );
   };
 

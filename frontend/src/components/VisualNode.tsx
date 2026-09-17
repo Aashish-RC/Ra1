@@ -14,6 +14,7 @@ export interface VisualNodeData {
   inputs: Array<{ id: string; title: string; dataType: string }>;
   outputs: Array<{ id: string; title: string; dataType: string }>;
   data: Record<string, unknown>;
+  customCode?: string;
 }
 
 export interface VisualNodeProps {
@@ -69,9 +70,14 @@ export const VisualNode: React.FC<VisualNodeProps> = ({
     onOpenCodeEditor(node);
   };
 
-  // Preview snippet
+  // Preview snippet (incorporates Langflow editable customCode when customized)
   const snippet =
-    typeof node.data?.code === 'string'
+    typeof node.customCode === 'string' && node.customCode.trim().length > 0
+      ? (node.customCode.split('\n').find((l) => {
+          const t = l.trim();
+          return t.length > 0 && !t.startsWith('//') && !t.startsWith('/*') && !t.startsWith('*') && !t.startsWith('import');
+        })?.trim() || 'Custom Node Implementation')
+      : typeof node.data?.code === 'string'
       ? node.data.code.split('\n')[0]
       : typeof node.data?.template === 'string'
       ? node.data.template

@@ -133,6 +133,12 @@ export interface NodeBase {
    * If true, the node dynamically exposes a special '$if' boolean condition port.
    */
   isConditional?: boolean;
+
+  /**
+   * Optional custom TypeScript implementation code for the node (Langflow editable-node-code pattern).
+   * When present, represents the editable source code defining this node's logic, inputs, and outputs.
+   */
+  customCode?: string;
 }
 
 /**

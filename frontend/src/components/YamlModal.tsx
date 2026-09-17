@@ -37,6 +37,7 @@ export const YamlModal: React.FC<YamlModalProps> = ({
           title: n.title,
           visualData: n.visualData,
           data: n.data,
+          ...(n.customCode ? { customCode: n.customCode } : {}),
         })),
         connections: connections.map((c) => ({
           outputNodeId: c.outputNodeId,
@@ -67,6 +68,7 @@ export const YamlModal: React.FC<YamlModalProps> = ({
         inputs: n.inputs || [{ id: 'input', title: 'Input', dataType: 'any' }],
         outputs: n.outputs || [{ id: 'output', title: 'Output', dataType: 'any' }],
         data: n.data || {},
+        ...(n.customCode ? { customCode: n.customCode } : {}),
       }));
 
       const importedConnections: WireConnectionItem[] = (parsed.connections || []).map((c: any, idx: number) => ({
