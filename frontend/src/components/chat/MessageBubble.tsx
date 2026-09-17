@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import type { ChatMessage, Citation } from '../../../../backend/chat/chatService.js';
 import { CitationBadge } from './CitationBadge.js';
+import { ThinkingDrawer } from './ThinkingDrawer.js';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
@@ -103,6 +104,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </span>
         <span className="message-timestamp">{timestamp}</span>
       </div>
+
+      {/* AI Thinking Drawer — above assistant replies */}
+      {isAssistant && <ThinkingDrawer message={message} />}
 
       <div className="message-content">
         {renderedHtml ? (

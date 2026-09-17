@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { nanoid } from 'nanoid';
 import { Canvas } from './components/Canvas.js';
 import { NodePalette } from './components/NodePalette.js';
@@ -11,6 +11,7 @@ import { DocumentEditorPanel } from './components/panels/DocumentEditorPanel.js'
 import { SandboxPanel } from './components/panels/SandboxPanel.js';
 import { DataTablePanel } from './components/panels/DataTablePanel.js';
 import { PdfViewerPanel } from './components/panels/PdfViewerPanel.js';
+import { OnboardingWizard, type OnboardingPreferences } from './components/onboarding/OnboardingWizard.js';
 import { NODES_BY_TYPE } from '../../backend/nodes/allNodes.js';
 import type { VisualNodeData } from './components/VisualNode.js';
 import type { WireConnectionItem } from './components/WireLayer.js';
@@ -62,6 +63,50 @@ export const App: React.FC = () => {
   // Chat panel state
   const [isChatOpen, setIsChatOpen] = useState(false);
 
+  // Onboarding wizard state (optional, dismissible overlay; defaults to open on first load)
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('ra1_onboarding_completed') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleCompleteOnboarding = useCallback((prefs: OnboardingPreferences) => {
+    try {
+      localStorage.setItem('ra1_onboarding_completed', 'true');
+      localStorage.setItem('ra1_user_preferences', JSON.stringify(prefs));
+    } catch (err) {
+      console.error('Failed to save onboarding preferences', err);
+    }
+    setIsOnboardingOpen(false);
+  }, []);
+
+  const handleDismissOnboarding = useCallback(() => {
+    try {
+      localStorage.setItem('ra1_onboarding_completed', 'true');
+    } catch (err) {
+      console.error('Failed to set onboarding dismissed', err);
+    }
+    setIsOnboardingOpen(false);
+  }, []);
+
+  // Auto-dismiss onboarding when user interacts with canvas/workspace outside modal, navbar, panels, and chat
+  useEffect(() => {
+    if (!isOnboardingOpen) return;
+    const handleGlobalPointerDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (target.closest('.onboarding-modal')) return;
+      if (target.closest('.top-navbar')) return;
+      if (target.closest('#chat-panel')) return;
+      if (target.closest('.panel-manager')) return;
+      handleDismissOnboarding();
+    };
+    window.addEventListener('pointerdown', handleGlobalPointerDown, true);
+    return () => window.removeEventListener('pointerdown', handleGlobalPointerDown, true);
+  }, [isOnboardingOpen, handleDismissOnboarding]);
+
   // Artifact panel state
   const [activePanel, setActivePanel] = useState<PanelType>('none');
   const [panelPayload, setPanelPayload] = useState<PanelPayload>({});
@@ -72,6 +117,9 @@ export const App: React.FC = () => {
     (type: PanelType, payload?: unknown) => {
       setPanelPayload((payload as PanelPayload) ?? {});
       setActivePanel(type);
+      if (type !== 'none') {
+        setIsOnboardingOpen(false);
+      }
     },
     []
   );
@@ -81,6 +129,7 @@ export const App: React.FC = () => {
     setPanelPayload({});
     setJumpCitation(citation);
     setActivePanel('pdf');
+    setIsOnboardingOpen(false);
   }, []);
 
   // Add node handler
@@ -247,6 +296,17 @@ export const App: React.FC = () => {
         </div>
 
         <div className="navbar-actions">
+          {/* Quickstart / Onboarding wizard toggle */}
+          <button
+            type="button"
+            className="btn"
+            id="open-onboarding-btn"
+            onClick={() => setIsOnboardingOpen(true)}
+            title="Open Setup Guide & Onboarding"
+          >
+            <span>✨</span> Setup Guide
+          </button>
+
           {/* Chat panel toggle */}
           <button
             type="button"
@@ -263,7 +323,10 @@ export const App: React.FC = () => {
             type="button"
             className={`btn ${activePanel === 'editor' ? 'btn-active' : ''}`}
             id="open-editor-panel-btn"
-            onClick={() => setActivePanel((p) => (p === 'editor' ? 'none' : 'editor'))}
+            onClick={() => {
+              setIsOnboardingOpen(false);
+              setActivePanel((p) => (p === 'editor' ? 'none' : 'editor'));
+            }}
             title="Open Document Editor"
           >
             <span>📝</span> Editor
@@ -272,7 +335,10 @@ export const App: React.FC = () => {
             type="button"
             className={`btn ${activePanel === 'sandbox' ? 'btn-active' : ''}`}
             id="open-sandbox-panel-btn"
-            onClick={() => setActivePanel((p) => (p === 'sandbox' ? 'none' : 'sandbox'))}
+            onClick={() => {
+              setIsOnboardingOpen(false);
+              setActivePanel((p) => (p === 'sandbox' ? 'none' : 'sandbox'));
+            }}
             title="Open Code Sandbox"
           >
             <span>▶</span> Sandbox
@@ -281,7 +347,10 @@ export const App: React.FC = () => {
             type="button"
             className={`btn ${activePanel === 'table' ? 'btn-active' : ''}`}
             id="open-table-panel-btn"
-            onClick={() => setActivePanel((p) => (p === 'table' ? 'none' : 'table'))}
+            onClick={() => {
+              setIsOnboardingOpen(false);
+              setActivePanel((p) => (p === 'table' ? 'none' : 'table'));
+            }}
             title="Open Data Table"
           >
             <span>📊</span> Data
@@ -290,7 +359,10 @@ export const App: React.FC = () => {
             type="button"
             className={`btn ${activePanel === 'pdf' ? 'btn-active' : ''}`}
             id="open-pdf-panel-btn"
-            onClick={() => setActivePanel((p) => (p === 'pdf' ? 'none' : 'pdf'))}
+            onClick={() => {
+              setIsOnboardingOpen(false);
+              setActivePanel((p) => (p === 'pdf' ? 'none' : 'pdf'));
+            }}
             title="Open PDF Viewer"
           >
             <span>📄</span> PDF
@@ -332,7 +404,19 @@ export const App: React.FC = () => {
       </header>
 
       {/* Main Workspace Layout */}
-      <div className="main-workspace">
+      <div
+        className="main-workspace"
+        onPointerDownCapture={() => {
+          if (isOnboardingOpen) {
+            handleDismissOnboarding();
+          }
+        }}
+        onDragEnterCapture={() => {
+          if (isOnboardingOpen) {
+            handleDismissOnboarding();
+          }
+        }}
+      >
         <NodePalette onAddNode={handleAddNode} />
         <Canvas
           nodes={nodes}
@@ -389,6 +473,13 @@ export const App: React.FC = () => {
         nodes={nodes}
         connections={connections}
         onLoadGraph={handleLoadGraph}
+      />
+
+      {/* Onboarding Wizard (Optional, dismissible overlay) */}
+      <OnboardingWizard
+        isOpen={isOnboardingOpen}
+        onClose={handleDismissOnboarding}
+        onComplete={handleCompleteOnboarding}
       />
     </div>
   );

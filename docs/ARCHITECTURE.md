@@ -8,6 +8,7 @@ This document is the single authoritative reference for Ra1's node contract, mod
 3. [Governance Layer Architecture](#section-3-governance-layer-architecture--schema-specification)
 4. [ActivePieces Reference Study](#section-4-activepieces-piece-declaration-framework-structural-reference-study)
 5. [Merged Built-In Nodes Catalog](#section-5-merged-built-in-nodes-catalog--file-reconciliation)
+6. [Onboarding Flow & AI Thinking Drawer Architecture](#section-6-onboarding-flow--ai-thinking-drawer-architecture)
 
 ---
 
@@ -843,3 +844,90 @@ $$\text{Total Files (118)} = 109\text{ Node Implementations} + 8\text{ Contract 
 | 107 | LemurActionItemsNode | `lemurActionItems` | `backend/nodes/plugins/LemurActionItemsNode.ts` |
 | 108 | LemurTaskNode | `lemurTask` | `backend/nodes/plugins/LemurTaskNode.ts` |
 | 109 | AutoEvalsNode | `autoEvals` | `backend/nodes/plugins/AutoEvalsNode.ts` |
+
+---
+
+## Section 6: Onboarding Flow & AI Thinking Drawer Architecture
+
+### 6.1 Overview & Design Decisions
+
+This section documents the architecture, component hierarchy, state contracts, and UX patterns for two companion features built in Phase 3/4:
+1. **Optional, Skippable Onboarding Flow**: A 4-step wizard that introduces new users to Ra1's capabilities (use case, response style, model powering preference, connected apps) with real-time live preview mechanics, designed as a non-blocking overlay that never prevents immediate canvas interaction or first-message chat.
+2. **Expandable AI Thinking Drawer**: A collapsible diagnostic and transparency drawer rendered directly above assistant replies in the chat surface, surfacing the underlying retrieval, model routing, and execution steps already captured in the pipeline.
+
+---
+
+### 6.2 Pattern References & License Verification
+
+| Reference Repository | Upstream License | Policy & Implementation Boundary |
+|---|---|---|
+| **LobeChat** (`lobehub/lobe-chat`) | **LobeHub Community License** (non-free commercial distribution restrictions) | **Pattern-reference only**. License verified non-permissive for commercial redistribution. Zero code, assets, or styles copied from upstream. Completely original clean-room implementation in React, TypeScript, and native CSS. |
+| **Letta** (`letta-ai/letta`) | **Apache 2.0** (Permissive) | **Pattern-reference only** for thought-loop, retrieval step inspection, and debugger UX. Zero upstream source code copied; clean-room UI implementation utilizing Ra1's existing message metadata pipeline. |
+
+---
+
+### 6.3 Onboarding Flow Architecture
+
+#### 6.3.1 Non-Blocking Overlay Specification
+- **Overlay Container**: The onboarding wizard is mounted at `#onboarding-overlay` with CSS properties `position: fixed; inset: 0; pointer-events: none; z-index: 38;`.
+- **Docking & Collision Avoidance**: To ensure full canvas usability on first load without requiring dismissal, the modal is bottom-docked (`align-items: flex-end; padding: 16px;`) with a fixed height of `440px`. Canvas nodes and wires (which reside at screen coordinates $y \in [188\text{px}, 268\text{px}]$) remain completely visible and directly clickable above the modal boundary.
+- **Selective Pointer Event Delegation**: Only `#onboarding-modal` captures pointer events (`pointer-events: auto`). Top navbar buttons (Chat toggle, panels, debugger) and the canvas surface remain fully interactive.
+- **Dismissal Semantics**:
+  - **Explicit Skip**: User clicks "Skip for now", saving `ra1_onboarding_completed: true` in `localStorage` without modifying default preferences.
+  - **Explicit Complete**: User completes step 4 and clicks "Finish Setup", saving preferences to `ra1_user_preferences` in `localStorage`.
+  - **Canvas Interaction**: Clicking anywhere on the canvas background auto-dismisses the overlay to avoid getting in the user's flow.
+  - **Panel Toggling**: Opening an artifact panel (Editor, Sandbox, Table, PDF) automatically dismisses the overlay.
+  - **Re-activation**: The onboarding wizard can be reopened at any time via the `✨ Setup Guide` button in `.top-navbar`.
+
+#### 6.3.2 4-Question Flow & State Contract
+
+```typescript
+export interface OnboardingPreferences {
+  useCase: 'coding' | 'research' | 'data_analysis' | 'canvas_flows';
+  answerStyle: 'concise' | 'detailed' | 'code_first';
+  modelPreference: 'auto_fast' | 'pool_free' | 'premium_accuracy';
+  connectedApps: string[];
+}
+```
+
+1. **Step 1 — Primary Use Case**:
+   - Options: *Full-Stack Coding & Prototyping*, *Research & Document Analysis*, *Data Analysis & Charting*, *Visual Agentic Canvas Flows*.
+   - Live Preview: Automatically switches the preview pane to display the corresponding interactive artifact preview (Code Sandbox, TipTap Document Editor, Data Table / Chart, or Visual Canvas).
+2. **Step 2 — Assistant Answer Style**:
+   - Options: *Concise & Direct*, *Detailed & Explanatory*, *Code-First*.
+   - Live Preview: Renders simulated assistant reply formatted according to the selected density and tone.
+3. **Step 3 — Model-Powering Preference**:
+   - Options: *Auto Mode (Fast & Cost-Optimized)*, *Pooled Quota (Free Community Pool)*, *Premium Accuracy (Flagship Models)*.
+   - Live Preview: Displays the active model badge, routing tier, and provider details.
+4. **Step 4 — Apps & Integrations to Connect**:
+   - Options: Multi-select chips for *Slack*, *GitHub*, *PostgreSQL*, *HTTP Webhooks*.
+   - Live Preview: Renders live connected integration badges reflecting the user's selection in real time.
+
+---
+
+### 6.4 AI Thinking Drawer Architecture
+
+#### 6.4.1 Display-Layer Design Principles
+- **No Injected Reasoning Loops**: The thinking drawer is strictly a display-layer component (`frontend/src/components/chat/ThinkingDrawer.tsx`). It does not execute or invent agent reasoning steps, but surfaces data already present in the message pipeline (`ChatMessage.retrievalSteps`, `ChatMessage.modelRoute`, `ChatMessage.citations`).
+- **Placement**: Rendered directly above the assistant message body (`.message-content`) inside `MessageBubble.tsx`.
+- **Default State**: Collapsed by default displaying a clean trigger button: `💭 Thinking... (N steps)` with an expand chevron.
+- **Expanded Contents**:
+  1. **Model Route & Provider**: Surfaces the resolved model ID (e.g., `gpt-4o`, `claude-3-5-sonnet`, `mock-rag-synthesizer`), routing strategy, and latency.
+  2. **Retrieval Steps (RAG)**: If document retrieval was performed, lists each indexed chunk consulted, source document filename, relevance confidence score ($0.0 - 1.0$), and excerpted chunk preview.
+  3. **Tool & Connector Invocations**: Displays any connector or tool calls dispatched during synthesis.
+  4. **Status Indicator**: Confirms completed synthesis and token timing.
+
+---
+
+### 6.5 File Inventory
+
+| Component / File | Purpose |
+|---|---|
+| `frontend/src/components/onboarding/OnboardingWizard.tsx` | Interactive 4-step wizard with split-screen question selector and real-time live preview pane. |
+| `frontend/src/components/chat/ThinkingDrawer.tsx` | Collapsible transparency drawer surfacing RAG retrieval traces, model selection, and execution metadata. |
+| `frontend/src/components/chat/MessageBubble.tsx` | Chat message renderer integrating `<ThinkingDrawer message={message} />` above assistant replies. |
+| `frontend/src/App.tsx` | Application shell wiring onboarding lifecycle, navbar triggers, and non-blocking pointer delegation. |
+| `frontend/src/styles/phase3.css` | Styles for onboarding modal, split preview, live previews, thinking drawer, and z-index hierarchy. |
+| `frontend/tests/onboarding.spec.ts` | 5 Playwright end-to-end test cases (OB1–OB5) validating non-blocking load, preview reactivity, completion, skipping, and reopening. |
+| `frontend/tests/thinking.spec.ts` | 3 Playwright end-to-end test cases (TK1–TK3) validating collapsed default, toggling, and real RAG retrieval data display. |
+
