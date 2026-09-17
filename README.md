@@ -1,6 +1,6 @@
-# Rivet Canvas Foundation (Phase 1, Step 1)
+# Rivet Canvas Foundation & Editable-Code Architecture (Phase 1, Steps 1–3)
 
-Visual node-canvas foundation for AI workflow authoring, directly modeled on and sourced from [Ironclad Rivet](https://github.com/Ironclad/rivet) (MIT License).
+Visual node-canvas foundation for AI workflow authoring, directly modeled on and sourced from [Ironclad Rivet](https://github.com/Ironclad/rivet) (MIT License), extended with [Langflow](https://github.com/langflow-ai/langflow)'s editable-node-code pattern (MIT) and referencing [ActivePieces](https://github.com/activepieces/activepieces) piece-declaration architecture (MIT core).
 
 ---
 
@@ -10,11 +10,12 @@ Ra1 provides a complete browser-based visual node canvas with:
 - **Interactive Infinite Canvas**: Smooth pan/zoom, grid background, node selection, drag-to-move, and deletion.
 - **Dynamic Port-to-Port Wiring**: Curved SVG cubic-bezier connection wires with auto-routing, click-to-delete, and input/output connection validation.
 - **109 Merged Built-in Nodes**: All 109 core, OpenAI Assistants, and plugin nodes ported directly from Ironclad Rivet, organized in a searchable tray palette with drag-and-drop onto the canvas.
-- **Editable Script/Code Modal**: In-place Monaco/textarea editor for Code and Prompt nodes.
-- **Lossless YAML Flow Storage**: Export and import complete workflow graphs to clean YAML format.
+- **Langflow Editable-Node-Code Pattern**: In-place editable TypeScript source view across **all 109 nodes** (not just code nodes). Changes to code or `@title` directives synchronize live to the visual node box without mutating node IDs or breaking existing wire connections.
+- **Lossless YAML Flow Storage**: Export and import complete workflow graphs to clean YAML format, preserving `customCode` and node configurations losslessly.
 - **Live-Debugging Bridge**: WebSocket bridge server connecting the frontend canvas with the backend runner.
 - **Trivet Testing Framework**: Graph and test-case validation schemas ported from Rivet.
-- **Automated UI Testing Suite**: 9/9 passing Playwright end-to-end scenarios.
+- **ActivePieces Reference Study**: Architectural analysis of ActivePieces' piece framework (`createPiece`, `PieceAuth`, `Property.*`, `createAction`) in `docs/ACTIVEPIECES_REFERENCE.md` serving as the design blueprint for the Phase 4 connector layer.
+- **Automated UI Testing Suite**: 12/12 passing Playwright end-to-end scenarios covering visual canvas operations, editable source code, live visual reflection, wire preservation, and YAML roundtripping.
 
 ---
 
@@ -25,11 +26,13 @@ Ra1 provides a complete browser-based visual node canvas with:
 ├── LICENSE                     # MIT License (retaining Ironclad Rivet copyright notice)
 ├── .gitignore                  # Git ignore rules
 ├── package.json                # Root workspace scripts
-├── automated-test-report.md    # Automated UI test results (Playwright, 9/9 passing)
+├── automated-test-report.md    # Automated UI test results (Playwright, 12/12 passing)
 ├── manual-testing-guide.md     # Step-by-step human verification checklist & manual
 ├── docs/
-│   ├── NODE_CONTRACT.md        # Comprehensive TypeScript contract guide & custom node tutorial
-│   └── MERGED_NODES.md         # Full catalog of all 109 merged nodes & source file origins
+│   ├── NODE_CONTRACT.md        # TypeScript contract guide, customCode lifecycle & Langflow audit
+│   ├── MERGED_NODES.md         # Full catalog of all 109 merged nodes & source file origins
+│   ├── ACTIVEPIECES_REFERENCE.md # ActivePieces piece-declaration structural reference study
+│   └── MANUAL_TESTING_STEP2.md # Step 2 manual verification checklist & instruction manual
 ├── backend/
 │   ├── package.json            # Backend workspace dependencies (ws, yaml, nanoid, tsx)
 │   ├── debugger/               # Live-debugging bridge server & CLI executor
